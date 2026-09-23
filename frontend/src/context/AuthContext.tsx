@@ -55,8 +55,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(() => {
-    const saved = localStorage.getItem('korevx_auth_user');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('korevx_auth_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -64,11 +68,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       // Verificar si corresponde a un Administrador creado recientemente
-      const savedAdmins = localStorage.getItem('korevx_registered_admins');
-      const customAdmins = savedAdmins ? JSON.parse(savedAdmins) : [];
-      const matchCustom = customAdmins.find(
+      let customAdmins: any[] = [];
+      try {
+        const savedAdmins = localStorage.getItem('korevx_registered_admins');
+        customAdmins = savedAdmins ? JSON.parse(savedAdmins) : [];
+      } catch {}
+      const matchCustom = Array.isArray(customAdmins) ? customAdmins.find(
         (a: any) => a.email.toLowerCase() === (email || '').toLowerCase()
-      );
+      ) : null;
 
       const selectedUser: AuthUser = matchCustom
         ? {

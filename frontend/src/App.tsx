@@ -367,12 +367,18 @@ function AppContent({ user }: { user: AuthUser }) {
   const [conversations, setConversations] = useState<Conversation[]>(() => {
     const savedScoped = localStorage.getItem(`korevx_conversations_${workspaceId}`);
     if (savedScoped) {
-      try { return JSON.parse(savedScoped); } catch (e) {}
+      try {
+        const parsed = JSON.parse(savedScoped);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {}
     }
     if (isDefaultWorkspace) {
       const savedLegacy = localStorage.getItem('korevx_conversations');
       if (savedLegacy) {
-        try { return JSON.parse(savedLegacy); } catch (e) {}
+        try {
+          const parsed = JSON.parse(savedLegacy);
+          if (Array.isArray(parsed)) return parsed;
+        } catch (e) {}
       }
       return initialMockConversations;
     }
@@ -381,9 +387,11 @@ function AppContent({ user }: { user: AuthUser }) {
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
 
   useEffect(() => {
-    localStorage.setItem(`korevx_conversations_${workspaceId}`, JSON.stringify(conversations));
-    if (isDefaultWorkspace) {
-      localStorage.setItem('korevx_conversations', JSON.stringify(conversations));
+    if (Array.isArray(conversations)) {
+      localStorage.setItem(`korevx_conversations_${workspaceId}`, JSON.stringify(conversations));
+      if (isDefaultWorkspace) {
+        localStorage.setItem('korevx_conversations', JSON.stringify(conversations));
+      }
     }
   }, [conversations, workspaceId, isDefaultWorkspace]);
 
@@ -391,12 +399,18 @@ function AppContent({ user }: { user: AuthUser }) {
   const [agents, setAgents] = useState<Agent[]>(() => {
     const savedScoped = localStorage.getItem(`korevx_agents_${workspaceId}`);
     if (savedScoped) {
-      try { return JSON.parse(savedScoped); } catch (e) {}
+      try {
+        const parsed = JSON.parse(savedScoped);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {}
     }
     if (isDefaultWorkspace) {
       const savedLegacy = localStorage.getItem('korevx_agents');
       if (savedLegacy) {
-        try { return JSON.parse(savedLegacy); } catch (e) {}
+        try {
+          const parsed = JSON.parse(savedLegacy);
+          if (Array.isArray(parsed)) return parsed;
+        } catch (e) {}
       }
       return initialAgents;
     }
@@ -415,9 +429,11 @@ function AppContent({ user }: { user: AuthUser }) {
   });
 
   useEffect(() => {
-    localStorage.setItem(`korevx_agents_${workspaceId}`, JSON.stringify(agents));
-    if (isDefaultWorkspace) {
-      localStorage.setItem('korevx_agents', JSON.stringify(agents));
+    if (Array.isArray(agents)) {
+      localStorage.setItem(`korevx_agents_${workspaceId}`, JSON.stringify(agents));
+      if (isDefaultWorkspace) {
+        localStorage.setItem('korevx_agents', JSON.stringify(agents));
+      }
     }
   }, [agents, workspaceId, isDefaultWorkspace]);
 
@@ -425,12 +441,18 @@ function AppContent({ user }: { user: AuthUser }) {
   const [channels, setChannels] = useState<ChannelAccount[]>(() => {
     const savedScoped = localStorage.getItem(`korevx_channels_${workspaceId}`);
     if (savedScoped) {
-      try { return JSON.parse(savedScoped); } catch (e) {}
+      try {
+        const parsed = JSON.parse(savedScoped);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {}
     }
     if (isDefaultWorkspace) {
       const savedLegacy = localStorage.getItem('korevx_channels');
       if (savedLegacy) {
-        try { return JSON.parse(savedLegacy); } catch (e) {}
+        try {
+          const parsed = JSON.parse(savedLegacy);
+          if (Array.isArray(parsed)) return parsed;
+        } catch (e) {}
       }
       return initialChannels;
     }
@@ -438,9 +460,11 @@ function AppContent({ user }: { user: AuthUser }) {
   });
 
   useEffect(() => {
-    localStorage.setItem(`korevx_channels_${workspaceId}`, JSON.stringify(channels));
-    if (isDefaultWorkspace) {
-      localStorage.setItem('korevx_channels', JSON.stringify(channels));
+    if (Array.isArray(channels)) {
+      localStorage.setItem(`korevx_channels_${workspaceId}`, JSON.stringify(channels));
+      if (isDefaultWorkspace) {
+        localStorage.setItem('korevx_channels', JSON.stringify(channels));
+      }
     }
   }, [channels, workspaceId, isDefaultWorkspace]);
 
@@ -780,7 +804,7 @@ function AppContent({ user }: { user: AuthUser }) {
     const loadFromApi = async () => {
       try {
         const data = await api.getConversations({ workspaceId });
-        if (data && data.length > 0) {
+        if (data && Array.isArray(data) && data.length > 0) {
           setConversations(data);
         }
       } catch (e) {
@@ -1040,7 +1064,7 @@ function AppContent({ user }: { user: AuthUser }) {
     const syncInterval = setInterval(async () => {
       try {
         const data = await api.getConversations({ workspaceId });
-        if (data && data.length > 0) {
+        if (data && Array.isArray(data) && data.length > 0) {
           setConversations((prev) => {
             const merged = [...prev];
             data.forEach((dbConv: any) => {
@@ -1693,6 +1717,68 @@ function AppContent({ user }: { user: AuthUser }) {
   );
 }
 
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, ErrorBoundaryState> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: any) {
+    console.error('KorevX Runtime Error Boundary caught:', error, info);
+  }
+
+  handleReset = () => {
+    // Limpiar posibles datos corruptos en localStorage
+    const keysToRemove = [
+      'korevx_conversations',
+      'korevx_audit_logs',
+      'korevx_support_mode',
+      'korevx_audit_mode',
+    ];
+    keysToRemove.forEach((k) => {
+      try { localStorage.removeItem(k); } catch {}
+    });
+    this.setState({ hasError: false });
+    window.location.reload();
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen w-full bg-[#030508] flex items-center justify-center p-6 text-slate-100 font-sans">
+          <div className="max-w-md w-full bg-[#070C16] border border-[#162133] rounded-3xl p-8 shadow-2xl text-center space-y-5">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-[#00F0FF]/10 text-[#00F0FF] border border-[#00F0FF]/30 flex items-center justify-center text-2xl">
+              <i className="fa-solid fa-rotate-right"></i>
+            </div>
+            <div>
+              <h2 className="text-xl font-bold font-tech text-white">Recuperación de Plataforma</h2>
+              <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                Se detectó una inconsistencia de datos temporales en el navegador. Haz clic abajo para restaurar la interfaz limpia.
+              </p>
+            </div>
+            <button
+              onClick={this.handleReset}
+              className="w-full py-3 bg-[#00F0FF] hover:bg-[#00D7E5] text-[#030508] font-bold text-xs uppercase tracking-wider rounded-xl font-tech transition shadow-lg shadow-[#00F0FF]/20"
+            >
+              Restaurar y Recargar Plataforma
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function AppRoot() {
   const { user } = useAuth();
 
@@ -1705,9 +1791,11 @@ function AppRoot() {
 
 export function App() {
   return (
-    <AuthProvider>
-      <AppRoot />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppRoot />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

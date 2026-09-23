@@ -1,7 +1,13 @@
 import axios from 'axios';
 import { Conversation, ChannelAccount, ConversationStatus, PlatformType, InteractionType } from '../types';
 
-const API_BASE_URL = '/api/v1';
+const getBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    const custom = localStorage.getItem('korevx_backend_url');
+    if (custom) return custom.replace(/\/$/, '') + '/api/v1';
+  }
+  return ((import.meta as any).env?.VITE_API_URL as string)?.replace(/\/$/, '') || '/api/v1';
+};
 
 export const api = {
   async getConversations(params?: {
@@ -12,18 +18,30 @@ export const api = {
     assignedUserId?: string;
     search?: string;
   }): Promise<Conversation[]> {
-    const res = await axios.get(`${API_BASE_URL}/conversations`, { params });
-    return res.data;
+    try {
+      const res = await axios.get(`${getBaseUrl()}/conversations`, { params, timeout: 5000 });
+      return Array.isArray(res.data) ? res.data : [];
+    } catch {
+      return [];
+    }
   },
 
-  async getConversationById(id: string): Promise<Conversation> {
-    const res = await axios.get(`${API_BASE_URL}/conversations/${id}`);
-    return res.data;
+  async getConversationById(id: string): Promise<Conversation | null> {
+    try {
+      const res = await axios.get(`${getBaseUrl()}/conversations/${id}`, { timeout: 5000 });
+      return res.data && typeof res.data === 'object' && !Array.isArray(res.data) ? res.data : null;
+    } catch {
+      return null;
+    }
   },
 
-  async updateConversationStatus(id: string, status: ConversationStatus, assignedUserId?: string): Promise<Conversation> {
-    const res = await axios.patch(`${API_BASE_URL}/conversations/${id}/status`, { status, assignedUserId });
-    return res.data;
+  async updateConversationStatus(id: string, status: ConversationStatus, assignedUserId?: string): Promise<Conversation | null> {
+    try {
+      const res = await axios.patch(`${getBaseUrl()}/conversations/${id}/status`, { status, assignedUserId });
+      return res.data;
+    } catch {
+      return null;
+    }
   },
 
   async replyToConversation(
@@ -32,17 +50,25 @@ export const api = {
     mediaUrls?: string[],
     parentCommentId?: string,
   ) {
-    const res = await axios.post(`${API_BASE_URL}/conversations/${conversationId}/reply`, {
-      content,
-      mediaUrls,
-      parentCommentId,
-    });
-    return res.data;
+    try {
+      const res = await axios.post(`${getBaseUrl()}/conversations/${conversationId}/reply`, {
+        content,
+        mediaUrls,
+        parentCommentId,
+      });
+      return res.data;
+    } catch {
+      return null;
+    }
   },
 
   async getChannels(): Promise<ChannelAccount[]> {
-    const res = await axios.get(`${API_BASE_URL}/channels`);
-    return res.data;
+    try {
+      const res = await axios.get(`${getBaseUrl()}/channels`, { timeout: 5000 });
+      return Array.isArray(res.data) ? res.data : [];
+    } catch {
+      return [];
+    }
   },
 
   async simulateWebhookEvent(data: {
@@ -52,7 +78,11 @@ export const api = {
     content: string;
     postTitle?: string;
   }) {
-    const res = await axios.post(`${API_BASE_URL}/webhooks/simulate`, data);
-    return res.data;
+    try {
+      const res = await axios.post(`${getBaseUrl()}/webhooks/simulate`, data);
+      return res.data;
+    } catch {
+      return null;
+    }
   },
 };

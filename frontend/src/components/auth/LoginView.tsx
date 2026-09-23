@@ -107,9 +107,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSuccess }) => {
 
         {/* Administradores de Empresas Creadas (si existen) */}
         {(() => {
-          const saved = localStorage.getItem('korevx_registered_admins');
-          const createdAdmins = saved ? JSON.parse(saved) : [];
-          if (createdAdmins.length === 0) return null;
+          let createdAdmins: any[] = [];
+          try {
+            const saved = localStorage.getItem('korevx_registered_admins');
+            createdAdmins = saved ? JSON.parse(saved) : [];
+          } catch {}
+          if (!Array.isArray(createdAdmins) || createdAdmins.length === 0) return null;
 
           return (
             <div className="mb-5 p-2.5 rounded-xl bg-[#080C14] border border-[#141B29] space-y-1.5 font-tech">
