@@ -1,0 +1,426 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// -------------------------------------------------------------------
+// ENUMS DE NEGOCIO Y AUDITORÍA
+// -------------------------------------------------------------------
+
+enum PlatformType {
+  FACEBOOK
+  INSTAGRAM
+  TIKTOK
+  WHATSAPP
+  TWITTER_X
+  LINKEDIN
+}
+
+enum InteractionType {
+  DIRECT_MESSAGE   // DM privado
+  POST_COMMENT     // Comentario en publicación
+}
+
+enum ConversationStatus {
+  PENDING        // Requiere acción (Rojo #EF4444)
+  ASSIGNED       // Asignado a agente (Ámbar #F59E0B)
+  COLLABORATING  // Compartido / En colaboración con Administrador (Azul #3B82F6)
+  RESOLVED       // Caso cerrado (Verde #10B981)
+}
+
+enum SenderType {
+  CUSTOMER
+  AGENT
+  BOT
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  SUPERVISOR
+  AGENT
+}
+
+enum TicketType {
+  OPERATOR_TO_ADMIN    // Escalamiento interno dentro de la empresa
+  ADMIN_TO_SUPERADMIN  // Reporte de infraestructura / plataforma a KorevX Core
+}
+
+enum TicketCategory {
+  SPECIAL_APPROVAL       // Aprobación especial
+  DISCOUNT_AUTHORIZATION // Autorización de descuento
+  L2_SUPPORT             // Soporte de Nivel 2
+  ARCO_PRIVACY           // Solicitud de derechos ARCO (Ley 1581)
+  TECH_PLATFORM_ISSUE    // Falla técnica de plataforma
+  WEBHOOKS_FAILURE       // Caída de webhooks / canales
+  BILLING                // Facturación y suscripción
+  OTHER                  // Otros
+}
+
+enum TicketStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  CANCELLED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum AuditAction {
+  LOGIN
+  LOGOUT
+  CREATE
+  UPDATE
+  DELETE
+  SOFT_DELETE
+  STATUS_CHANGE
+  ASSIGNMENT
+  EXPORT
+}
+
+enum AuditResource {
+  CONVERSATION
+  MESSAGE
+  CONTACT
+  NOTE
+  CHANNEL
+  USER
+  AUTH
+  SETTINGS
+  TICKET
+}
+
+// -------------------------------------------------------------------
+// MULTI-TENANT & USUARIOS
+// -------------------------------------------------------------------
+
+model Workspace {
+  id            String         @id @default(uuid())
+  name          String         // Ej: "KorevX Global"
+  slug          String         @unique
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  users         User[]
+  channels      ChannelAccount[]
+  conversations Conversation[]
+  contacts      Contact[]
+  auditLogs     AuditLog[]
+  tickets       InternalTicket[]
+}
+
+model User {
+  id            String         @id @default(uuid())
+  workspaceId   String
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  email         String         @unique
+  passwordHash  String
+  fullName      String
+  role          UserRole       @default(AGENT)
+  avatarUrl     String?
+  isOnline      Boolean        @default(false)
+  lastAssignedAt DateTime?     // Para asignación atómica Round-Robin
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  assignedConversations Conversation[]
+  messagesSent          Message[]
+  notes                 InternalNote[]
+  sessions              UserSession[]
+  auditLogs             AuditLog[]
+  lifecycleEvents       ConversationLifecycleLog[]
+  createdTickets        InternalTicket[]           @relation("TicketsCreated")
+  assignedTickets       InternalTicket[]           @relation("TicketsAssigned")
+}
+
+// -------------------------------------------------------------------
+// CONTROL DE ACCESOS Y SESIONES (GOBERNANZA DE AUTENTICACIÓN)
+// -------------------------------------------------------------------
+
+model UserSession {
+  id            String         @id @default(uuid())
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ipAddress     String?
+  userAgent     String?
+  deviceType    String?        // Mobile, Desktop, Tablet
+  location      String?        // Ciudad / País si aplica
+  loginAt       DateTime       @default(now())
+  logoutAt      DateTime?
+  isActive      Boolean        @default(true)
+  revokedAt     DateTime?
+
+  @@index([userId, isActive])
+  @@index([loginAt])
+}
+
+// -------------------------------------------------------------------
+// CANALES Y CUENTAS VINCULADAS
+// -------------------------------------------------------------------
+
+model ChannelAccount {
+  id             String         @id @default(uuid())
+  workspaceId    String
+  workspace      Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  platform       PlatformType
+  accountName    String         // Ej: "KorevX Oficial"
+  accountHandle  String?        // @korevx_tech
+  externalAccountId String      // ID único externo de Meta o TikTok
+  accessToken    String         @db.Text
+  refreshToken   String?        @db.Text
+  tokenExpiresAt DateTime?
+  avatarUrl      String?
+  isActive       Boolean        @default(true)
+  connectedAt    DateTime       @default(now())
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  conversations  Conversation[]
+
+  @@unique([platform, externalAccountId])
+}
+
+// -------------------------------------------------------------------
+// CONTACTOS / CLIENTES CRM (CON SOFT DELETE)
+// -------------------------------------------------------------------
+
+model Contact {
+  id             String         @id @default(uuid())
+  workspaceId    String
+  workspace      Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name           String
+  avatarUrl      String?
+  email          String?
+  phone          String?
+  customFields   Json?
+  
+  // Gobernanza y Soft Delete
+  deletedAt      DateTime?
+  deletedById    String?
+
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  socialIdentities ContactSocialIdentity[]
+  conversations    Conversation[]
+  notes            InternalNote[]
+
+  @@index([workspaceId, deletedAt])
+}
+
+model ContactSocialIdentity {
+  id             String         @id @default(uuid())
+  contactId      String
+  contact        Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  platform       PlatformType
+  externalId     String         // Scoped ID del contacto en la red social
+  handle         String?
+  displayName    String?
+  profilePicUrl  String?
+
+  createdAt      DateTime       @default(now())
+
+  @@unique([platform, externalId])
+}
+
+// -------------------------------------------------------------------
+// CONVERSACIONES Y CICLO DE VIDA (GOBERNANZA DE ATENCIÓN)
+// -------------------------------------------------------------------
+
+model Conversation {
+  id                String             @id @default(uuid())
+  workspaceId       String
+  workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  channelAccountId  String
+  channelAccount    ChannelAccount     @relation(fields: [channelAccountId], references: [id], onDelete: Cascade)
+  contactId         String
+  contact           Contact            @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  assignedUserId    String?
+  assignedUser      User?              @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+
+  externalThreadId  String             // ID único del hilo en la API externa
+  interactionType   InteractionType    // DIRECT_MESSAGE o POST_COMMENT
+  status            ConversationStatus @default(PENDING) // PENDING, ASSIGNED, RESOLVED
+
+  // Contexto del Post si es comentario
+  postId            String?
+  postUrl           String?
+  postTitle         String?
+  postThumbnail     String?
+
+  unreadCount       Int                @default(1)
+  lastActivityAt    DateTime           @default(now())
+
+  // Tiempos SLA y Métricas de atención
+  firstResponseAt   DateTime?
+  resolvedAt        DateTime?
+
+  // Gobernanza y Soft Delete
+  deletedAt         DateTime?
+  deletedById       String?
+
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  messages          Message[]
+  notes             InternalNote[]
+  lifecycleLogs     ConversationLifecycleLog[]
+  tickets           InternalTicket[]
+
+  @@unique([channelAccountId, externalThreadId])
+  @@index([workspaceId, status, deletedAt])
+  @@index([workspaceId, lastActivityAt])
+}
+
+// -------------------------------------------------------------------
+// HISTORIAL DEL CICLO DE VIDA DE LA CONVERSACIÓN (TIMELINE)
+// -------------------------------------------------------------------
+
+model ConversationLifecycleLog {
+  id               String              @id @default(uuid())
+  conversationId   String
+  conversation     Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  
+  previousStatus   ConversationStatus?
+  newStatus        ConversationStatus
+  
+  performedById    String?             // Null si fue automático por webhook entrante
+  performedBy      User?               @relation(fields: [performedById], references: [id], onDelete: SetNull)
+  
+  assignedToId     String?             // Agente al que quedó asignado en este cambio
+  
+  reason           String?             // Ej: "Carlos tomó la conversación", "Cliente escribió nuevo mensaje", "Marcado Resuelto"
+  durationSeconds  Int?                // Segundos que permaneció en el estado previo
+
+  ipAddress        String?
+  userAgent        String?
+  createdAt        DateTime            @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+// -------------------------------------------------------------------
+// MENSAJES (CON SOFT DELETE Y AUDITORÍA)
+// -------------------------------------------------------------------
+
+model Message {
+  id                String         @id @default(uuid())
+  conversationId    String
+  conversation      Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderType        SenderType     // CUSTOMER, AGENT, BOT
+  senderUserId      String?        // ID del agente si fue enviado por uno
+  senderUser        User?          @relation(fields: [senderUserId], references: [id], onDelete: SetNull)
+
+  externalMessageId String?        @unique
+  content           String         @db.Text
+  mediaUrls         String[]       @default([])
+  parentCommentId   String?
+  rawPayload        Json?
+
+  sentAt            DateTime       @default(now())
+  
+  // Gobernanza y Soft Delete (nada se borra físicamente)
+  deletedAt         DateTime?
+  deletedById       String?
+
+  createdAt         DateTime       @default(now())
+
+  @@index([conversationId, sentAt])
+}
+
+model InternalNote {
+  id             String         @id @default(uuid())
+  conversationId String?
+  conversation   Conversation?  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  contactId      String?
+  contact        Contact?       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  authorId       String
+  author         User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content        String         @db.Text
+  
+  // Soft delete
+  deletedAt      DateTime?
+  deletedById    String?
+
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+// -------------------------------------------------------------------
+// BITÁCORA GENERAL DE AUDITORÍA INMUTABLE (AUDIT LOGS)
+// -------------------------------------------------------------------
+
+model AuditLog {
+  id             String         @id @default(uuid())
+  workspaceId    String
+  workspace      Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId         String?        // Null si fue un webhook o tarea interna del sistema
+  user           User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  action         AuditAction
+  resource       AuditResource
+  resourceId     String
+  description    String         // Descripción en lenguaje natural
+  
+  previousState  Json?          // Snapshot de datos antes del cambio
+  newState       Json?          // Snapshot de datos después del cambio
+  
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime       @default(now())
+
+  @@index([workspaceId, action])
+  @@index([workspaceId, resource, resourceId])
+  @@index([createdAt])
+}
+
+// -------------------------------------------------------------------
+// SISTEMA DE TICKETS E INCIDENCIAS INTERNAS (GOBERNANZA MULTI-NIVEL)
+// -------------------------------------------------------------------
+
+model InternalTicket {
+  id                    String          @id @default(uuid())
+  ticketNumber          Int             @default(autoincrement())
+  workspaceId           String
+  workspace             Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  type                  TicketType
+  category              TicketCategory
+  priority              TicketPriority  @default(MEDIUM)
+  status                TicketStatus    @default(OPEN)
+  
+  title                 String
+  description           String          @db.Text
+  
+  createdById           String
+  createdBy             User            @relation("TicketsCreated", fields: [createdById], references: [id], onDelete: Cascade)
+  
+  assignedToId          String?
+  assignedTo            User?           @relation("TicketsAssigned", fields: [assignedToId], references: [id], onDelete: SetNull)
+  
+  conversationId        String?
+  conversation          Conversation?   @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  
+  supportModeRequested  Boolean         @default(false)
+  supportModeGranted    Boolean         @default(false)
+  
+  resolutionNotes       String?         @db.Text
+  resolvedAt            DateTime?
+  
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  @@index([workspaceId, status])
+  @@index([type, status])
+  @@index([createdById])
+}
