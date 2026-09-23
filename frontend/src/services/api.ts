@@ -5,6 +5,9 @@ const getBaseUrl = () => {
   if (typeof window !== 'undefined') {
     const custom = localStorage.getItem('korevx_backend_url');
     if (custom) return custom.replace(/\/$/, '') + '/api/v1';
+    if (!window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
+      return 'https://korevx-omnichannel.onrender.com/api/v1';
+    }
   }
   return ((import.meta as any).env?.VITE_API_URL as string)?.replace(/\/$/, '') || '/api/v1';
 };

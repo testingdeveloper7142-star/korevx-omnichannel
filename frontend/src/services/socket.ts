@@ -6,7 +6,11 @@ class WebSocketService {
   connect(workspaceId: string = 'default-workspace') {
     if (this.socket) return this.socket;
 
-    this.socket = io('/', {
+    const backendOrigin = (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1'))
+      ? 'https://korevx-omnichannel.onrender.com'
+      : '/';
+
+    this.socket = io(backendOrigin, {
       transports: ['websocket', 'polling'],
     });
 
