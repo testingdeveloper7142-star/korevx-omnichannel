@@ -1234,12 +1234,14 @@ function AppContent({ user }: { user: AuthUser }) {
   }, [user.role, currentView]);
 
   // Conversaciones accesibles según el rol del usuario (Gobernanza Multi-Tenant)
-  const accessibleConversations = conversations.filter((c) => {
+  const accessibleConversations = (conversations || []).filter((c) => {
+    if (!c || !c.id) return false;
+
     // Si el canal está desconectado, verificar estado para Operador
     const channelConfig = channels.find(
-      (ch) => ch.id === c.channelAccountId || ch.platform === c.channelAccount.platform
+      (ch) => ch.id === c.channelAccountId || (c.channelAccount && ch.platform === c.channelAccount.platform)
     );
-    const isChannelActive = channelConfig ? channelConfig.isActive : c.channelAccount.isActive !== false;
+    const isChannelActive = channelConfig ? channelConfig.isActive : c.channelAccount?.isActive !== false;
 
     // Regla Nivel 1 (Operador/Agente): Solo ve conversaciones si el canal está activo Y están asignadas a él o en cola sin asignar
     if (user.role === 'AGENT') {
@@ -1253,7 +1255,7 @@ function AppContent({ user }: { user: AuthUser }) {
 
   // Filtrado reactivo de conversaciones según los filtros seleccionados
   const filteredConversations = accessibleConversations.filter((c) => {
-    if (selectedChannel !== 'all' && c.channelAccount.platform !== selectedChannel) return false;
+    if (selectedChannel !== 'all' && c.channelAccount?.platform !== selectedChannel) return false;
     if (selectedType !== 'all' && c.interactionType !== selectedType) return false;
     
     // Funcionalidad de Estados: Sin Asignar, Asignados y Resueltos
@@ -1274,8 +1276,8 @@ function AppContent({ user }: { user: AuthUser }) {
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const matchName = c.contact.name.toLowerCase().includes(q);
-      const matchContent = c.messages?.some((m) => m.content.toLowerCase().includes(q));
+      const matchName = c.contact?.name ? c.contact.name.toLowerCase().includes(q) : false;
+      const matchContent = c.messages?.some((m) => m?.content?.toLowerCase().includes(q));
       if (!matchName && !matchContent) return false;
     }
     return true;
@@ -1302,16 +1304,16 @@ function AppContent({ user }: { user: AuthUser }) {
         : accessibleConversations.filter((c) => c.status === 'RESOLVED').length,
     allChannels: accessibleConversations.length,
     instagram: accessibleConversations.filter(
-      (c) => c.channelAccount.platform === 'INSTAGRAM',
+      (c) => c.channelAccount?.platform === 'INSTAGRAM',
     ).length,
     facebook: accessibleConversations.filter(
-      (c) => c.channelAccount.platform === 'FACEBOOK',
+      (c) => c.channelAccount?.platform === 'FACEBOOK',
     ).length,
     tiktok: accessibleConversations.filter(
-      (c) => c.channelAccount.platform === 'TIKTOK',
+      (c) => c.channelAccount?.platform === 'TIKTOK',
     ).length,
     whatsapp: accessibleConversations.filter(
-      (c) => c.channelAccount.platform === 'WHATSAPP',
+      (c) => c.channelAccount?.platform === 'WHATSAPP',
     ).length,
   };
 
@@ -1757,17 +1759,11 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, Error
   }
 
   handleReset = () => {
-    // Limpiar posibles datos corruptos en localStorage
-    const keysToRemove = [
-      'korevx_conversations',
-      'korevx_audit_logs',
-      'korevx_support_mode',
-      'korevx_audit_mode',
-    ];
-    keysToRemove.forEach((k) => {
-      try { localStorage.removeItem(k); } catch {}
-    });
-    this.setState({ hasError: false });
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch {}
+    this.setState({ hasError: false, error: undefined });
     window.location.reload();
   };
 
@@ -1784,6 +1780,11 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, Error
               <p className="text-xs text-slate-400 mt-2 leading-relaxed">
                 Se detectó una inconsistencia de datos temporales en el navegador. Haz clic abajo para restaurar la interfaz limpia.
               </p>
+              {this.state.error && (
+                <div className="mt-3 p-2 rounded-lg bg-rose-950/40 border border-rose-500/30 text-[11px] text-rose-300 font-mono text-left break-all">
+                  {this.state.error.message}
+                </div>
+              )}
             </div>
             <button
               onClick={this.handleReset}

@@ -356,21 +356,21 @@ export const InboxFeed: React.FC<InboxFeedProps> = ({
                   <div className="relative flex-shrink-0">
                     <img
                       src={
-                        conv.contact.avatarUrl ||
+                        conv.contact?.avatarUrl ||
                         `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80`
                       }
-                      alt={conv.contact.name}
+                      alt={conv.contact?.name || 'Cliente'}
                       className="w-11 h-11 rounded-full object-cover ring-1 ring-[#1A2332]"
                     />
                     <div className="absolute -bottom-1 -right-1 ring-2 ring-[#030508] rounded-full">
-                      {getPlatformIcon(conv.channelAccount.platform)}
+                      {getPlatformIcon(conv.channelAccount?.platform || 'INSTAGRAM')}
                     </div>
                   </div>
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="text-sm font-bold text-white group-hover:text-[#00F0FF] transition truncate font-tech">
-                        {conv.contact.name}
+                        {conv.contact?.name || 'Cliente'}
                       </h4>
                       {/* Badge de Fanpage Destino */}
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-600/20 text-blue-300 border border-blue-500/40 text-[10px] font-bold">
