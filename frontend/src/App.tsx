@@ -1315,16 +1315,36 @@ function AppContent({ user }: { user: AuthUser }) {
     ).length,
   };
 
+  const handleSelectConversation = async (conv: Conversation) => {
+    setActiveConversation(conv);
+    try {
+      const full = await api.getConversationById(conv.id);
+      if (full && full.id === conv.id) {
+        setActiveConversation(full);
+        setConversations((prev) => prev.map((c) => (c.id === full.id ? full : c)));
+      }
+    } catch {
+      // mantener conv
+    }
+  };
+
   const handleSendMessage = async (text: string) => {
     if (!activeConversation) return;
 
+    let savedMsg: any = null;
     try {
-      await api.replyToConversation(activeConversation.id, text);
+      savedMsg = await api.replyToConversation(
+        activeConversation.id,
+        text,
+        undefined,
+        undefined,
+        user?.id,
+      );
     } catch (e) {
-      // Local fallback
+      // Fallback local
     }
 
-    const newMsg = {
+    const newMsg = savedMsg || {
       id: `msg-${Date.now()}`,
       conversationId: activeConversation.id,
       senderType: 'AGENT' as const,
@@ -1534,7 +1554,7 @@ function AppContent({ user }: { user: AuthUser }) {
             ) : (
               <InboxFeed
                 conversations={filteredConversations}
-                onSelectConversation={setActiveConversation}
+                onSelectConversation={handleSelectConversation}
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}
                 counts={counts}

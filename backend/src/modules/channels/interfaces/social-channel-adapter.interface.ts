@@ -24,6 +24,7 @@ export interface CanonicalNormalizedEvent {
     postThumbnail?: string;
     parentCommentId?: string;
   };
+  recipientExternalId?: string;
   timestamp: Date;
   rawPayload: any;
 }

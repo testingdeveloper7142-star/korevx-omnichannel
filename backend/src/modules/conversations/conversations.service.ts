@@ -84,8 +84,8 @@ export class ConversationsService {
         },
         messages: {
           where: { deletedAt: null },
-          orderBy: { sentAt: 'desc' },
-          take: 1,
+          orderBy: { sentAt: 'asc' },
+          take: 100,
         },
       },
       orderBy: { lastActivityAt: 'desc' },
@@ -245,12 +245,31 @@ export class ConversationsService {
       this.logger.warn(`Despacho externo falló o canal en modo simulado: ${err.message}. Guardando mensaje localmente.`);
     }
 
+    // Validar agentUserId para evitar Foreign key constraint violated
+    let validUserId: string | null = null;
+    if (agentUserId && agentUserId !== 'system-agent') {
+      const userExists = await this.prisma.user.findUnique({
+        where: { id: agentUserId },
+        select: { id: true },
+      });
+      if (userExists) {
+        validUserId = userExists.id;
+      }
+    }
+    if (!validUserId) {
+      const defaultUser = await this.prisma.user.findFirst({
+        where: { workspaceId: conversation.workspaceId },
+        select: { id: true },
+      });
+      validUserId = defaultUser?.id || null;
+    }
+
     // 3. Persistir el mensaje enviado en PostgreSQL
     const message = await this.prisma.message.create({
       data: {
         conversationId,
         senderType: SenderType.AGENT,
-        senderUserId: agentUserId,
+        senderUserId: validUserId,
         externalMessageId: externalMsgId,
         content,
         mediaUrls: mediaUrls || [],
@@ -277,7 +296,7 @@ export class ConversationsService {
       where: { id: conversationId },
       data: {
         status: newStatus,
-        assignedUserId: agentUserId || conversation.assignedUserId,
+        assignedUserId: conversation.assignedUserId || validUserId,
         lastActivityAt: new Date(),
         firstResponseAt: conversation.firstResponseAt || new Date(),
       },
@@ -294,26 +313,28 @@ export class ConversationsService {
         conversationId,
         previousStatus,
         newStatus,
-        performedById: agentUserId,
-        assignedToId: agentUserId,
+        performedById: validUserId,
+        assignedToId: conversation.assignedUserId || validUserId,
         reason: 'Primera respuesta enviada por el agente (transición automática a ASSIGNED)',
         ipAddress,
         userAgent,
       });
     }
 
-    // 6. Registrar en AuditLog
-    await this.auditService.recordAudit({
-      workspaceId: conversation.workspaceId,
-      userId: agentUserId,
-      action: AuditAction.CREATE,
-      resource: AuditResource.MESSAGE,
-      resourceId: message.id,
-      description: `Agente respondió a ${conversation.contact.name}`,
-      newState: { contentSnippet: content.substring(0, 100) },
-      ipAddress,
-      userAgent,
-    });
+    // 6. Registrar en AuditLog (solo si validUserId existe)
+    if (validUserId) {
+      await this.auditService.recordAudit({
+        workspaceId: conversation.workspaceId,
+        userId: validUserId,
+        action: AuditAction.CREATE,
+        resource: AuditResource.MESSAGE,
+        resourceId: message.id,
+        description: `Agente respondió a ${conversation.contact.name}`,
+        newState: { contentSnippet: content.substring(0, 100) },
+        ipAddress,
+        userAgent,
+      });
+    }
 
     // 7. Emitir por WebSockets
     this.eventsGateway.emitNewMessage(conversation.workspaceId, message);

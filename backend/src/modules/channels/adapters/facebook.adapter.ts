@@ -58,12 +58,15 @@ export class FacebookAdapter implements ISocialChannelAdapter {
               }
             }
 
+            const recipientPageId = msgItem.recipient?.id || entry.id;
+
             events.push({
               platform: PlatformType.FACEBOOK,
               channelAccountId,
               interactionType: InteractionType.DIRECT_MESSAGE,
               externalConversationId: `fb_thread_${senderId}`,
               externalMessageId: messageId,
+              recipientExternalId: recipientPageId,
               sender: {
                 externalId: senderId,
                 name: `Usuario FB (${senderId.substring(0, 6)})`,
@@ -86,6 +89,7 @@ export class FacebookAdapter implements ISocialChannelAdapter {
             const senderName = comment.from?.name || `Usuario FB (${senderId.substring(0, 6)})`;
             const commentId = comment.comment_id || `comment_${Date.now()}`;
             const postId = comment.post_id || entry.id;
+            const recipientPageId = entry.id;
 
             events.push({
               platform: PlatformType.FACEBOOK,
@@ -93,6 +97,7 @@ export class FacebookAdapter implements ISocialChannelAdapter {
               interactionType: InteractionType.POST_COMMENT,
               externalConversationId: `fb_post_${postId}`,
               externalMessageId: commentId,
+              recipientExternalId: recipientPageId,
               sender: {
                 externalId: senderId,
                 name: senderName,
@@ -115,6 +120,13 @@ export class FacebookAdapter implements ISocialChannelAdapter {
   }
 
   async sendMessage(payload: OutgoingMessagePayload): Promise<SendMessageResult> {
+    const effectiveToken =
+      payload.accessToken &&
+      !payload.accessToken.includes('demo') &&
+      !payload.accessToken.includes('dummy')
+        ? payload.accessToken
+        : process.env.META_PAGE_ACCESS_TOKEN || payload.accessToken;
+
     try {
       if (payload.interactionType === InteractionType.POST_COMMENT) {
         // Responder a comentario en publicación
@@ -125,7 +137,7 @@ export class FacebookAdapter implements ISocialChannelAdapter {
           { message: payload.content },
           {
             headers: {
-              Authorization: `Bearer ${payload.accessToken}`,
+              Authorization: `Bearer ${effectiveToken}`,
               'Content-Type': 'application/json',
             },
           },
@@ -147,7 +159,7 @@ export class FacebookAdapter implements ISocialChannelAdapter {
           },
           {
             headers: {
-              Authorization: `Bearer ${payload.accessToken}`,
+              Authorization: `Bearer ${effectiveToken}`,
               'Content-Type': 'application/json',
             },
           },

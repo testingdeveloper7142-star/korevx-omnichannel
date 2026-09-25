@@ -339,9 +339,17 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-slate-400 truncate">
-                  Canal: {accountName}
-                </p>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-blue-600/20 border border-blue-500/40 text-[11px] font-bold text-blue-300 shadow-sm">
+                    <i className="fa-solid fa-flag text-[10px] text-blue-400"></i>
+                    Página: <span className="text-white font-extrabold">{accountName}</span>
+                  </span>
+                  {conversation.channelAccount?.accountHandle && (
+                    <span className="text-[11px] text-slate-400 font-mono">
+                      {conversation.channelAccount.accountHandle}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>

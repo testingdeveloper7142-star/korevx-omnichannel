@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import axios from 'axios';
 import { PrismaService } from '../../database/prisma.service';
 import { EventsGateway } from '../websockets/events.gateway';
 import {
@@ -28,36 +29,126 @@ export class WebhooksService {
   }
 
   private async persistNormalizedEvent(event: CanonicalNormalizedEvent) {
-    // 1. Obtener o vincular canal
-    let channel = await this.prisma.channelAccount.findUnique({
-      where: { id: event.channelAccountId },
-    });
+    // 1. Obtener o vincular canal usando recipientExternalId si está disponible
+    let channel: any = null;
+
+    if (event.recipientExternalId) {
+      channel = await this.prisma.channelAccount.findFirst({
+        where: {
+          platform: event.platform as any,
+          externalAccountId: event.recipientExternalId,
+        },
+      });
+    }
+
+    if (!channel && event.channelAccountId && !event.channelAccountId.includes('-default')) {
+      channel = await this.prisma.channelAccount.findUnique({
+        where: { id: event.channelAccountId },
+      });
+    }
 
     if (!channel) {
-      // Intentar buscar por externalAccountId o usar canal default/crear
       const defaultWorkspace = await this.getOrCreateDefaultWorkspace();
-      channel = await this.prisma.channelAccount.findFirst({
-        where: { platform: event.platform as any },
-      });
 
-      if (!channel) {
-        channel = await this.prisma.channelAccount.create({
-          data: {
-            workspaceId: defaultWorkspace.id,
+      let accountName = `KorevX ${event.platform}`;
+      let accountHandle = `@korevx_${event.platform.toLowerCase()}`;
+
+      if (event.recipientExternalId === '1170906462768971') {
+        accountName = 'Testing.developer';
+        accountHandle = '@testing.developer';
+      } else if (event.recipientExternalId === '1305749670200027') {
+        accountName = 'Korevx';
+        accountHandle = '@korevx';
+      } else if (event.recipientExternalId) {
+        accountName = `Página Facebook (${event.recipientExternalId})`;
+        accountHandle = `@fb_${event.recipientExternalId}`;
+      }
+
+      if (event.recipientExternalId) {
+        channel = await this.prisma.channelAccount.findFirst({
+          where: {
             platform: event.platform as any,
-            accountName: `KorevX ${event.platform}`,
-            accountHandle: `@korevx_${event.platform.toLowerCase()}`,
-            externalAccountId: `ext_${event.platform}_${Date.now()}`,
-            accessToken: 'dummy_token',
-            isActive: true,
+            accountName,
           },
         });
+
+        if (!channel) {
+          channel = await this.prisma.channelAccount.create({
+            data: {
+              workspaceId: defaultWorkspace.id,
+              platform: event.platform as any,
+              accountName,
+              accountHandle,
+              externalAccountId: event.recipientExternalId,
+              accessToken: process.env.META_PAGE_ACCESS_TOKEN || 'EAABwz_demo_token_facebook',
+              isActive: true,
+            },
+          });
+        }
+      } else {
+        channel = await this.prisma.channelAccount.findFirst({
+          where: { platform: event.platform as any },
+        });
+
+        if (!channel) {
+          channel = await this.prisma.channelAccount.create({
+            data: {
+              workspaceId: defaultWorkspace.id,
+              platform: event.platform as any,
+              accountName,
+              accountHandle,
+              externalAccountId: `ext_${event.platform}_${Date.now()}`,
+              accessToken: 'dummy_token',
+              isActive: true,
+            },
+          });
+        }
       }
     }
 
     const workspaceId = channel.workspaceId;
 
-    // 2. Gestionar Identidad Social y Contacto (CRM Unificado)
+    // 2. Intentar obtener nombre y foto de perfil real del usuario vía Meta Graph API
+    let senderName = event.sender.name;
+    let senderAvatarUrl = event.sender.avatarUrl;
+
+    const tokenForProfile =
+      channel.accessToken && !channel.accessToken.includes('demo') && !channel.accessToken.includes('dummy')
+        ? channel.accessToken
+        : process.env.META_PAGE_ACCESS_TOKEN;
+
+    if (
+      tokenForProfile &&
+      event.platform === PlatformType.FACEBOOK &&
+      event.sender.externalId &&
+      event.sender.externalId !== 'unknown'
+    ) {
+      try {
+        const profileRes = await axios.get(`https://graph.facebook.com/v21.0/${event.sender.externalId}`, {
+          params: {
+            fields: 'first_name,last_name,name,profile_pic',
+            access_token: tokenForProfile,
+          },
+          timeout: 3500,
+        });
+        if (profileRes.data) {
+          if (profileRes.data.name) {
+            senderName = profileRes.data.name;
+          } else if (profileRes.data.first_name) {
+            senderName = `${profileRes.data.first_name} ${profileRes.data.last_name || ''}`.trim();
+          }
+          if (profileRes.data.profile_pic) {
+            senderAvatarUrl = profileRes.data.profile_pic;
+          }
+        }
+      } catch (profileErr) {
+        this.logger.debug(
+          `No se pudo obtener perfil de Facebook (${event.sender.externalId}): ${profileErr.message}`,
+        );
+      }
+    }
+
+    // 3. Gestionar Identidad Social y Contacto (CRM Unificado)
     let identity = await this.prisma.contactSocialIdentity.findUnique({
       where: {
         platform_externalId: {
@@ -74,8 +165,8 @@ export class WebhooksService {
       contact = await this.prisma.contact.create({
         data: {
           workspaceId,
-          name: event.sender.name,
-          avatarUrl: event.sender.avatarUrl,
+          name: senderName,
+          avatarUrl: senderAvatarUrl,
         },
       });
 
@@ -85,11 +176,34 @@ export class WebhooksService {
           platform: event.platform as any,
           externalId: event.sender.externalId,
           handle: event.sender.username,
-          displayName: event.sender.name,
-          profilePicUrl: event.sender.avatarUrl,
+          displayName: senderName,
+          profilePicUrl: senderAvatarUrl,
         },
         include: { contact: true },
       });
+    } else {
+      const hasRealName = senderName && !senderName.startsWith('Usuario FB');
+      const shouldUpdateName = hasRealName && contact.name.startsWith('Usuario FB');
+      const shouldUpdateAvatar = Boolean(senderAvatarUrl && senderAvatarUrl !== contact.avatarUrl);
+
+      if (shouldUpdateName || shouldUpdateAvatar) {
+        contact = await this.prisma.contact.update({
+          where: { id: contact.id },
+          data: {
+            ...(shouldUpdateName ? { name: senderName } : {}),
+            ...(shouldUpdateAvatar ? { avatarUrl: senderAvatarUrl } : {}),
+          },
+        });
+        if (identity) {
+          await this.prisma.contactSocialIdentity.update({
+            where: { id: identity.id },
+            data: {
+              ...(shouldUpdateName ? { displayName: senderName } : {}),
+              ...(shouldUpdateAvatar ? { profilePicUrl: senderAvatarUrl } : {}),
+            },
+          });
+        }
+      }
     }
 
     // 3. Obtener o crear Conversación

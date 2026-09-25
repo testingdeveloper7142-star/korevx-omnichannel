@@ -52,15 +52,22 @@ export const api = {
     content: string,
     mediaUrls?: string[],
     parentCommentId?: string,
+    agentUserId?: string,
   ) {
     try {
-      const res = await axios.post(`${getBaseUrl()}/conversations/${conversationId}/reply`, {
-        content,
-        mediaUrls,
-        parentCommentId,
-      });
+      const res = await axios.post(
+        `${getBaseUrl()}/conversations/${conversationId}/reply`,
+        {
+          content,
+          mediaUrls,
+          parentCommentId,
+          agentUserId,
+        },
+        { timeout: 15000 },
+      );
       return res.data;
-    } catch {
+    } catch (err: any) {
+      console.error('Error enviando respuesta:', err?.response?.data || err.message);
       return null;
     }
   },

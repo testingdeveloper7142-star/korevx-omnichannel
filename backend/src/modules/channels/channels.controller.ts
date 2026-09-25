@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Patch, Param, Body, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ChannelsService } from './channels.service';
 
@@ -10,14 +10,19 @@ export class ChannelsController {
   @Get()
   @ApiOperation({ summary: 'Listar todas las cuentas de redes sociales vinculadas' })
   @ApiResponse({ status: 200, description: 'Lista de canales' })
-  async getChannels(@Query('workspaceId') workspaceId: string) {
-    // Si no se envía workspaceId en desarrollo, obtenemos o usamos el default
-    return this.channelsService.listChannels(workspaceId || 'default-workspace');
+  async getChannels(@Query('workspaceId') workspaceId?: string) {
+    return this.channelsService.listChannels(workspaceId);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener información detallada de un canal' })
   async getChannel(@Param('id') id: string) {
     return this.channelsService.getChannelById(id);
+  }
+
+  @Patch(':id/token')
+  @ApiOperation({ summary: 'Actualizar token de acceso del canal' })
+  async updateChannelToken(@Param('id') id: string, @Body() dto: { accessToken: string }) {
+    return this.channelsService.updateChannelToken(id, dto.accessToken);
   }
 }

@@ -341,7 +341,10 @@ export const InboxFeed: React.FC<InboxFeedProps> = ({
           </div>
         ) : (
           conversations.map((conv) => {
-            const lastMsg = conv.messages && conv.messages.length > 0 ? conv.messages[0] : null;
+            const lastMsg =
+              conv.messages && conv.messages.length > 0
+                ? conv.messages[conv.messages.length - 1]
+                : null;
 
             return (
               <div
@@ -369,6 +372,11 @@ export const InboxFeed: React.FC<InboxFeedProps> = ({
                       <h4 className="text-sm font-bold text-white group-hover:text-[#00F0FF] transition truncate font-tech">
                         {conv.contact.name}
                       </h4>
+                      {/* Badge de Fanpage Destino */}
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-600/20 text-blue-300 border border-blue-500/40 text-[10px] font-bold">
+                        <i className="fa-solid fa-flag text-[9px] text-blue-400"></i>
+                        <span>{conv.channelAccount?.accountName || 'Página'}</span>
+                      </span>
                       {conv.interactionType === 'DIRECT_MESSAGE' ? (
                         <span className="text-[10px] px-2 py-0.2 rounded-full bg-emerald-500/15 text-[#10B981] font-semibold border border-emerald-500/30">
                           Mensaje Directo

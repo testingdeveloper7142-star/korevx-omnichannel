@@ -34,15 +34,20 @@ export class ChannelsService {
     return adapter;
   }
 
-  async listChannels(workspaceId: string) {
+  async listChannels(workspaceId?: string) {
+    const whereClause: any = {};
+    if (workspaceId && workspaceId !== 'default-workspace') {
+      whereClause.workspaceId = workspaceId;
+    }
     return this.prisma.channelAccount.findMany({
-      where: { workspaceId },
+      where: whereClause,
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
         platform: true,
         accountName: true,
         accountHandle: true,
+        externalAccountId: true,
         avatarUrl: true,
         isActive: true,
         connectedAt: true,
@@ -72,10 +77,22 @@ export class ChannelsService {
     }
 
     const adapter = this.getAdapter(channel.platform as PlatformType);
+    const token =
+      channel.accessToken && !channel.accessToken.includes('demo') && !channel.accessToken.includes('dummy')
+        ? channel.accessToken
+        : process.env.META_PAGE_ACCESS_TOKEN || channel.accessToken;
+
     return adapter.sendMessage({
       ...payload,
       channelAccountId,
-      accessToken: channel.accessToken,
+      accessToken: token,
+    });
+  }
+
+  async updateChannelToken(id: string, accessToken: string) {
+    return this.prisma.channelAccount.update({
+      where: { id },
+      data: { accessToken, isActive: true },
     });
   }
 }
