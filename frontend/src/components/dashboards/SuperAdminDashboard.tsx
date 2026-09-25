@@ -222,9 +222,10 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     setIsLoadingSessions(true);
     try {
       const res = await axios.get('/api/v1/audit/sessions');
-      setSessions(res.data || []);
+      setSessions(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.warn('Error consultando sesiones desde backend:', err);
+      setSessions([]);
     } finally {
       setIsLoadingSessions(false);
     }
@@ -237,9 +238,10 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
       const res = await axios.get('/api/v1/tickets', {
         params: { type: 'ADMIN_TO_SUPERADMIN' },
       });
-      setPlatformTickets(res.data || []);
+      setPlatformTickets(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.warn('Error cargando tickets de plataforma:', err);
+      setPlatformTickets([]);
     } finally {
       setIsLoadingTickets(false);
     }
@@ -407,9 +409,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     }
   };
 
-  const activeSupportTickets = platformTickets.filter((t) => t.supportModeRequested && t.status !== 'RESOLVED');
+  const activeSupportTickets = (Array.isArray(platformTickets) ? platformTickets : []).filter(
+    (t) => t.supportModeRequested && t.status !== 'RESOLVED',
+  );
 
-  const filteredSessions = sessions.filter((s) => {
+  const filteredSessions = (Array.isArray(sessions) ? sessions : []).filter((s) => {
     if (!sessionSearch.trim()) return true;
     const q = sessionSearch.toLowerCase();
     const matchUser = s.user?.fullName?.toLowerCase().includes(q) || s.user?.email?.toLowerCase().includes(q);
@@ -420,11 +424,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
 
   const availableWorkspaces = useMemo(() => {
     const set = new Set<string>();
-    logs.forEach((l) => {
+    (Array.isArray(logs) ? logs : []).forEach((l) => {
       const wsName = l.workspace?.name || l.user?.workspace?.name;
       if (wsName) set.add(wsName);
     });
-    sessions.forEach((s) => {
+    (Array.isArray(sessions) ? sessions : []).forEach((s) => {
       const wsName = s.user?.workspace?.name;
       if (wsName) set.add(wsName);
     });
@@ -442,7 +446,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     return Array.from(set);
   }, [logs, sessions]);
 
-  const filteredLogs = logs.filter((log) => {
+  const filteredLogs = (Array.isArray(logs) ? logs : []).filter((log) => {
     if (filterWorkspace !== 'all') {
       const wsName = log.workspace?.name || log.user?.workspace?.name || 'KorevX Global';
       if (!wsName.toLowerCase().includes(filterWorkspace.toLowerCase())) return false;
@@ -458,7 +462,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     return matchDesc || matchUser || matchWorkspace || matchIp || matchAction || matchResource;
   });
 
-  const filteredSupportConvs = supportConversations.filter((c) => {
+  const filteredSupportConvs = (Array.isArray(supportConversations) ? supportConversations : []).filter((c) => {
     if (!supportSearch.trim()) return true;
     const q = supportSearch.toLowerCase();
     const matchName = c.contact?.name?.toLowerCase().includes(q);

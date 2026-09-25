@@ -54,7 +54,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [auditPage, setAuditPage] = useState<number>(1);
   const [auditPageSize, setAuditPageSize] = useState<number>(8);
 
-  const filteredAuditLogs = auditLogs.filter((log) => {
+  const filteredAuditLogs = (Array.isArray(auditLogs) ? auditLogs : []).filter((log) => {
     if (auditFilter !== 'ALL' && log.action !== auditFilter) return false;
     if (auditSearch.trim()) {
       const q = auditSearch.toLowerCase();
@@ -209,7 +209,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Pestaña Admin: Exclusivamente tickets de Admin y Super Admin (escalamientos a Core / soporte L3)
   // Los tickets de operadores se gestionan exclusivamente en el Centro de Tickets
-  const adminTickets = tickets.filter(
+  const adminTickets = (Array.isArray(tickets) ? tickets : []).filter(
     (t) =>
       t.type === 'ADMIN_TO_SUPERADMIN' ||
       t.createdBy?.role === 'ADMIN' ||
@@ -222,9 +222,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const res = await axios.get('/api/v1/tickets', {
         params: { workspaceId: user?.workspaceId },
       });
-      setTickets(res.data || []);
+      setTickets(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.warn('Error cargando tickets:', err);
+      setTickets([]);
     } finally {
       setIsLoadingTickets(false);
     }
