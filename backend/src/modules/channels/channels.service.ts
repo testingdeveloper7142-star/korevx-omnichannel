@@ -50,6 +50,7 @@ export class ChannelsService {
         externalAccountId: true,
         avatarUrl: true,
         isActive: true,
+        accessToken: true,
         connectedAt: true,
         _count: {
           select: {

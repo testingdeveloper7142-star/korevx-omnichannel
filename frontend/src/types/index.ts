@@ -73,6 +73,7 @@ export interface ChannelAccount {
   accountName: string;
   accountHandle?: string;
   avatarUrl?: string;
+  accessToken?: string;
   isActive: boolean;
   connectedAt: string;
   _count?: {
@@ -115,6 +116,7 @@ export interface Message {
   content: string;
   mediaUrls?: string[];
   parentCommentId?: string;
+  rawPayload?: any;
   sentAt: string;
 }
 

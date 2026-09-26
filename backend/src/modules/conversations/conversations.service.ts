@@ -224,10 +224,16 @@ export class ConversationsService {
     const identity = conversation.contact.socialIdentities.find(
       (si) => si.platform === conversation.channelAccount.platform,
     );
-    const recipientExternalId = identity?.externalId || conversation.contact.name;
+    const recipientExternalId =
+      identity?.externalId ||
+      conversation.externalThreadId?.replace('fb_thread_', '').replace('ig_thread_', '') ||
+      conversation.contact.name;
 
     // 2. Despachar a la API externa de la red social
     let externalMsgId = `agent_${Date.now()}`;
+    let dispatchSuccess = false;
+    let dispatchError: string | null = null;
+
     try {
       const dispatchResult = await this.channelsService.sendOutgoingMessage(conversation.channelAccountId, {
         recipientExternalId,
@@ -240,8 +246,13 @@ export class ConversationsService {
 
       if (dispatchResult.success) {
         externalMsgId = dispatchResult.externalMessageId;
+        dispatchSuccess = true;
+      } else {
+        dispatchError = dispatchResult.error || 'Fallo de entrega en Meta Graph API';
+        this.logger.warn(`Despacho a Meta falló: ${dispatchError}`);
       }
     } catch (err) {
+      dispatchError = err.message;
       this.logger.warn(`Despacho externo falló o canal en modo simulado: ${err.message}. Guardando mensaje localmente.`);
     }
 
@@ -274,6 +285,10 @@ export class ConversationsService {
         content,
         mediaUrls: mediaUrls || [],
         parentCommentId,
+        rawPayload: {
+          dispatchSuccess,
+          dispatchError,
+        },
         sentAt: new Date(),
       },
       include: {

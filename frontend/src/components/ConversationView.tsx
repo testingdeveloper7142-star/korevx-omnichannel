@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { Conversation, PlatformType, InteractionType, QuickResponse } from '../types';
 import { ConversationTimeline } from './crm/ConversationTimeline';
@@ -92,6 +93,30 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
     } catch (err) {
       console.error('Error actualizando nombre de contacto:', err);
       setIsEditingContact(false);
+    }
+  };
+
+  const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
+  const [channelTokenInput, setChannelTokenInput] = useState('');
+  const [isSavingToken, setIsSavingToken] = useState(false);
+
+  const handleSaveChannelToken = async () => {
+    if (!channelTokenInput.trim() || !conversation?.channelAccountId) return;
+    setIsSavingToken(true);
+    try {
+      await axios.patch(`/api/v1/channels/${conversation.channelAccountId}/token`, {
+        accessToken: channelTokenInput.trim(),
+      });
+      if (conversation.channelAccount) {
+        conversation.channelAccount.accessToken = channelTokenInput.trim();
+      }
+      alert('¡Token de Meta guardado exitosamente! Ahora las respuestas se enviarán directamente a Facebook Messenger.');
+      setIsTokenModalOpen(false);
+      setChannelTokenInput('');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error guardando el token de Meta');
+    } finally {
+      setIsSavingToken(false);
     }
   };
 
@@ -634,6 +659,37 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
           </div>
         )}
 
+        {/* Banner de Advertencia si el Canal no tiene Page Access Token de Meta */}
+        {(!conversation.channelAccount?.accessToken ||
+          conversation.channelAccount.accessToken.includes('demo') ||
+          conversation.channelAccount.accessToken.includes('live-token-') ||
+          conversation.channelAccount.accessToken.includes('dummy')) && (
+          <div className="bg-amber-950/80 border-b border-amber-500/50 px-4 sm:px-6 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs text-amber-200 flex-shrink-0 z-20">
+            <div className="flex items-center gap-2.5">
+              <span className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center flex-shrink-0 text-xs">
+                <i className="fa-solid fa-triangle-exclamation"></i>
+              </span>
+              <div>
+                <strong className="text-white font-tech block sm:inline mr-2">Token de Meta no configurado:</strong>
+                <span>
+                  Las respuestas que envíes no llegarán al Facebook Messenger del cliente porque la página <strong className="text-white">'{accountName}'</strong> no tiene su Token de Página de Meta.
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setChannelTokenInput(conversation.channelAccount?.accessToken || '');
+                setIsTokenModalOpen(true);
+              }}
+              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs font-tech flex items-center gap-1.5 shadow-md shadow-amber-500/20 flex-shrink-0 self-end sm:self-auto transition"
+            >
+              <i className="fa-solid fa-key text-[10px]"></i>
+              <span>Ingresar Token de Meta</span>
+            </button>
+          </div>
+        )}
+
         {/* Historial de Mensajes: SuperAdmin Blindado o Vista del Chat */}
         {isSuperAdminBlocked ? (
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#030508] space-y-4 min-h-0">
@@ -795,18 +851,36 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                       >
                         <p className="whitespace-pre-wrap">{msg.content}</p>
                       </div>
-                      <p
-                        className={`text-[10px] text-slate-500 mt-1 font-tech ${
-                          isMsgFromAgent ? 'text-right' : 'text-left'
+                      <div
+                        className={`flex items-center gap-1.5 mt-1 ${
+                          isMsgFromAgent ? 'justify-end' : 'justify-start'
                         }`}
                       >
-                        {msg.sentAt
-                          ? new Date(msg.sentAt).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
-                          : 'Ahora'}
-                      </p>
+                        <p className="text-[10px] text-slate-500 font-tech">
+                          {msg.sentAt
+                            ? new Date(msg.sentAt).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            : 'Ahora'}
+                        </p>
+                        {isMsgFromAgent && (
+                          (msg as any).rawPayload?.dispatchSuccess === false ? (
+                            <span
+                              className="text-[10px] text-rose-400 flex items-center gap-1 font-semibold"
+                              title={(msg as any).rawPayload?.dispatchError || 'Error de entrega en Meta Graph API'}
+                            >
+                              <i className="fa-solid fa-circle-exclamation text-rose-500"></i>
+                              <span>No entregado en Messenger</span>
+                            </span>
+                          ) : (msg as any).rawPayload?.dispatchSuccess === true ? (
+                            <span className="text-[10px] text-emerald-400/80 flex items-center gap-0.5">
+                              <i className="fa-solid fa-check-double text-[9px]"></i>
+                              <span>Entregado a Messenger</span>
+                            </span>
+                          ) : null
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -1145,6 +1219,89 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
         conversationId={conversation.id}
         contactName={contactName}
       />
+
+      {/* Modal para Configurar Token de Meta directamente desde la conversación */}
+      {isTokenModalOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+            <div className="w-full max-w-md bg-[#05080F] border border-[#141B29] rounded-2xl p-6 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-[#111622] pb-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center text-sm shadow-sm">
+                    <i className="fa-solid fa-key"></i>
+                  </span>
+                  <div>
+                    <h4 className="text-sm font-bold text-white font-tech">Vincular Token de Meta</h4>
+                    <p className="text-[11px] text-slate-400">Canal: {accountName}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsTokenModalOpen(false)}
+                  className="w-7 h-7 rounded-lg bg-[#080C14] hover:bg-[#121824] text-slate-400 hover:text-white border border-[#141B29] flex items-center justify-center text-xs transition"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Para que las respuestas de tus operadores lleguen al <strong>Facebook Messenger</strong> del cliente, pega el <strong>Page Access Token</strong> (Token de Acceso de Página) generado en Meta for Developers.
+                </p>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase font-tech block mb-1.5">
+                    Page Access Token
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="EAA... (Token de larga duración de la Página Meta)"
+                    value={channelTokenInput}
+                    onChange={(e) => setChannelTokenInput(e.target.value)}
+                    autoFocus
+                    className="w-full bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl p-2.5 text-xs text-white placeholder-slate-500 font-mono"
+                  />
+                </div>
+
+                <div className="p-3 rounded-xl bg-cyan-950/20 border border-cyan-800/30 text-[11px] text-cyan-300 flex items-start gap-2">
+                  <i className="fa-solid fa-circle-info text-cyan-400 mt-0.5"></i>
+                  <span>
+                    El token se almacena de forma encriptada y habilita de inmediato la salida de mensajes vía Meta Graph API sin recargar la página.
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#111622]">
+                <button
+                  type="button"
+                  onClick={() => setIsTokenModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-[#080C14] border border-[#141B29] text-slate-400 hover:text-white text-xs font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingToken || !channelTokenInput.trim()}
+                  onClick={handleSaveChannelToken}
+                  className="px-5 py-2 rounded-xl bg-[#00F0FF] hover:bg-[#00D7E5] disabled:opacity-40 disabled:cursor-not-allowed text-[#030508] text-xs font-bold font-tech shadow-md shadow-[#00F0FF]/20 transition flex items-center gap-1.5"
+                >
+                  {isSavingToken ? (
+                    <>
+                      <i className="fa-solid fa-spinner fa-spin text-xs"></i>
+                      <span>Guardando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-check text-xs"></i>
+                      <span>Guardar y Activar Salida</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </section>
   );
 };
