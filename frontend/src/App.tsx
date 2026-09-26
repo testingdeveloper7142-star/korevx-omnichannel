@@ -861,6 +861,41 @@ function AppContent({ user }: { user: AuthUser }) {
       );
     });
 
+    // 3.1 Evento en tiempo real: Finalizar / Quitar Colaboración conjunta
+    socketService.onConversationEndCollaboration((data: any) => {
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id === data.conversationId) {
+            const nextStatus = c.assignedUserId ? 'ASSIGNED' : 'PENDING';
+            return { ...c, status: nextStatus };
+          }
+          return c;
+        })
+      );
+      setActiveConversation((current) => {
+        if (current && current.id === data.conversationId) {
+          const nextStatus = current.assignedUserId ? 'ASSIGNED' : 'PENDING';
+          return { ...current, status: nextStatus };
+        }
+        return current;
+      });
+
+      // Si fue este mismo usuario quien lo finalizó, no duplicar la notificación
+      if (data.endedById && user?.id && data.endedById === user.id) return;
+
+      soundManager.playNotification();
+      addNotification(
+        'Colaboración Finalizada',
+        `${data.endedByName} finalizó la colaboración en el caso de ${data.clientName}.`,
+        'general'
+      );
+      logAuditEvent(
+        'CONVERSATION_COLLABORATION_ENDED',
+        `${data.endedByName} finalizó la colaboración en la conversación de ${data.clientName}.`,
+        'INFO'
+      );
+    });
+
     // 4. Evento en tiempo real: Conversación asignada a un Operador
     socketService.onConversationAssign((data: any) => {
       setConversations((prev) =>
@@ -1534,6 +1569,39 @@ function AppContent({ user }: { user: AuthUser }) {
     });
   };
 
+  const handleEndCollaboration = (conversationId: string) => {
+    const conv = conversations.find((c) => c.id === conversationId);
+    const clientName = conv?.contact?.name || 'Cliente';
+    const nextStatus = conv?.assignedUserId ? 'ASSIGNED' : 'PENDING';
+
+    setConversations((prev) =>
+      prev.map((c) => (c.id === conversationId ? { ...c, status: nextStatus } : c))
+    );
+    setActiveConversation((current) =>
+      current && current.id === conversationId ? { ...current, status: nextStatus } : current
+    );
+
+    soundManager.playNotification();
+    addNotification(
+      'Colaboración Finalizada',
+      `Se dio por terminada la colaboración en el caso de ${clientName}.`,
+      'general'
+    );
+    logAuditEvent(
+      'CONVERSATION_COLLABORATION_ENDED',
+      `${user?.fullName || 'Usuario'} finalizó la colaboración en la conversación de ${clientName}.`,
+      'INFO'
+    );
+
+    // Emitir por WebSocket al equipo en tiempo real
+    socketService.emitConversationEndCollaboration({
+      conversationId,
+      clientName,
+      endedByName: user?.fullName || 'Usuario',
+      endedById: user?.id,
+    });
+  };
+
   return (
     <div className="h-screen w-screen flex flex-col bg-[#030508] text-slate-100 overflow-hidden relative">
       <Header
@@ -1583,6 +1651,7 @@ function AppContent({ user }: { user: AuthUser }) {
                 onMarkResolved={handleMarkResolved}
                 onAssignUser={(agentId) => handleAssignUser(activeConversation.id, agentId)}
                 onShareWithAdmin={() => handleShareWithAdmin(activeConversation.id)}
+                onEndCollaboration={() => handleEndCollaboration(activeConversation.id)}
                 availableAgents={availableAgentsList}
                 isSupportModeActive={isSupportModeActive}
                 isAuditModeActive={isAuditModeActive}

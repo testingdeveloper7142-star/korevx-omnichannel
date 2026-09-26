@@ -69,6 +69,12 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.broadcast.emit('conversation:share', data);
   }
 
+  @SubscribeMessage('conversation:end_collaboration')
+  handleConversationEndCollaboration(@ConnectedSocket() client: Socket, @MessageBody() data: any) {
+    this.logger.log(`Colaboración finalizada en conversación ${data?.conversationId} por ${data?.endedByName}`);
+    client.broadcast.emit('conversation:end_collaboration', data);
+  }
+
   @SubscribeMessage('conversation:assign')
   handleConversationAssign(@ConnectedSocket() client: Socket, @MessageBody() data: any) {
     this.logger.log(`Conversación ${data?.conversationId} asignada al agente ${data?.assignedAgentName}`);

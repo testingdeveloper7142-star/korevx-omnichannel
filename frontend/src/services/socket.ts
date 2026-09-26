@@ -56,6 +56,15 @@ class WebSocketService {
     this.socket?.on('conversation:share', callback);
   }
 
+  // Finalizar Colaboración en Tiempo Real
+  emitConversationEndCollaboration(payload: { conversationId: string; clientName: string; endedByName: string; endedById?: string }) {
+    this.socket?.emit('conversation:end_collaboration', payload);
+  }
+
+  onConversationEndCollaboration(callback: (data: { conversationId: string; clientName: string; endedByName: string; endedById?: string }) => void) {
+    this.socket?.on('conversation:end_collaboration', callback);
+  }
+
   // Asignación de Conversaciones en Tiempo Real
   emitConversationAssign(payload: { conversationId: string; clientName: string; assignedAgentId: string; assignedAgentName: string; assignedByName: string; assignedById?: string }) {
     this.socket?.emit('conversation:assign', payload);

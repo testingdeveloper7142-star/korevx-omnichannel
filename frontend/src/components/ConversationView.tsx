@@ -26,6 +26,7 @@ interface ConversationViewProps {
   onRespondAudit?: (accepted: boolean) => void;
   onLogInspection?: (details: string) => void;
   onShareWithAdmin?: () => void;
+  onEndCollaboration?: () => void;
   quickTemplates?: QuickResponse[];
 }
 
@@ -45,6 +46,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   onRespondAudit,
   onLogInspection,
   onShareWithAdmin,
+  onEndCollaboration,
   quickTemplates = [],
 }) => {
   const { user } = useAuth();
@@ -271,6 +273,33 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
     }
   };
 
+  const handleEndCollaboration = async () => {
+    if (!conversation?.id) return;
+    try {
+      setIsSharing(true);
+      const nextStatus = conversation.assignedUserId ? 'ASSIGNED' : 'PENDING';
+      setCurrentStatus(nextStatus);
+      if (onEndCollaboration) {
+        onEndCollaboration();
+      } else if (onStatusChange) {
+        onStatusChange(nextStatus);
+      }
+      try {
+        await axios.patch(`/api/v1/conversations/${conversation.id}/status`, {
+          status: nextStatus,
+          assignedUserId: conversation.assignedUserId,
+          performedById: user?.id,
+        });
+      } catch (e) {
+        // Fallback local
+      }
+    } catch (err) {
+      console.warn('Error al finalizar colaboración:', err);
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
   // Inserción / Restauración rápida de aviso legal Ley 1581
   const restoreMacroLey1581 = () => {
     setInputText(mandatoryLey1581Text);
@@ -477,19 +506,29 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
               <span className="font-bold text-[#00F0FF]">2m 45s</span>
             </div>
 
-            {/* Estado de Colaboración o Botón de Compartir con Admin (Bloqueado si no está asignado) */}
+            {/* Estado de Colaboración o Botón de Compartir con Admin */}
             {conversation.assignedUserId && (
               currentStatus === 'COLLABORATING' ? (
-                <div className="px-3 py-1.5 rounded-xl bg-blue-500/15 border border-blue-500/40 text-blue-400 text-xs font-semibold flex items-center gap-1.5 shadow-sm shadow-blue-500/10">
-                  <i className="fa-solid fa-handshake-angle text-blue-400"></i>
+                /* Tanto Operador como Administrador pueden quitar la colaboración */
+                <button
+                  onClick={handleEndCollaboration}
+                  disabled={isSharing}
+                  className="px-3 py-1.5 rounded-xl bg-blue-500/20 hover:bg-rose-950/40 border border-blue-500/50 hover:border-rose-500/60 text-blue-300 hover:text-rose-200 text-xs font-semibold flex items-center gap-1.5 shadow-sm shadow-blue-500/10 transition group cursor-pointer"
+                  title="Finalizar colaboración y devolver el control exclusivo al operador asignado"
+                >
+                  <i className="fa-solid fa-handshake-angle text-blue-400 group-hover:text-rose-400 text-xs transition"></i>
                   <span className="hidden sm:inline">En Colaboración</span>
-                </div>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/30 group-hover:bg-rose-500/30 text-blue-200 group-hover:text-rose-200 ml-1 transition">
+                    ✕ Quitar
+                  </span>
+                </button>
               ) : (
-                currentStatus !== 'RESOLVED' && (
+                /* Solo el Operador puede ver el botón 'Compartir con Admin' (Al Admin NO le debe aparecer) */
+                isAgent && currentStatus !== 'RESOLVED' && (
                   <button
                     onClick={handleShareWithAdmin}
                     disabled={isSharing}
-                    className="px-3 py-1.5 bg-blue-950/30 hover:bg-blue-900/40 border border-blue-500/40 hover:border-blue-400 text-blue-300 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition shadow-sm"
+                    className="px-3 py-1.5 bg-blue-950/30 hover:bg-blue-900/40 border border-blue-500/40 hover:border-blue-400 text-blue-300 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition shadow-sm cursor-pointer"
                     title="Compartir chat con Supervisor para intervención conjunta"
                   >
                     <i className="fa-solid fa-users-viewfinder text-xs text-blue-400"></i>
