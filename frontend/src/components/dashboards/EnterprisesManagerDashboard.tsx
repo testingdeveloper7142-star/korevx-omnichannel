@@ -10,6 +10,20 @@ export interface ChannelLimits {
   TIKTOK: number;
 }
 
+export interface OperatorItem {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  isOnline: boolean;
+  isBlocked: boolean;
+  status: 'ACTIVE' | 'BLOCKED';
+  assignedCount?: number;
+  avgResponseTime?: string;
+  avatar?: string;
+  createdAt?: string;
+}
+
 export interface EnterpriseItem {
   id: string;
   name: string;
@@ -20,6 +34,7 @@ export interface EnterpriseItem {
   channelLimits?: ChannelLimits;
   operatorCount: number;
   maxOperators?: number;
+  users?: OperatorItem[];
   monthlyApiRequests: number;
   quotaLimit: number;
   storageMb: number;
@@ -29,7 +44,7 @@ export interface EnterpriseItem {
   techLead: string;
   adminId?: string;
   adminEmail?: string;
-  status: 'ACTIVE' | 'TRIAL' | 'MAINTENANCE';
+  status: 'ACTIVE' | 'SUSPENDED' | 'TRIAL' | 'MAINTENANCE';
   createdAt?: string;
 }
 
@@ -100,6 +115,12 @@ export const EnterprisesManagerDashboard: React.FC = () => {
   const [isResetting, setIsResetting] = useState(false);
   const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null);
 
+  // Modal y gestión de Operadores por Empresa
+  const [selectedEnterpriseForOperators, setSelectedEnterpriseForOperators] = useState<EnterpriseItem | null>(null);
+  const [enterpriseOperatorsList, setEnterpriseOperatorsList] = useState<OperatorItem[]>([]);
+  const [isLoadingOperators, setIsLoadingOperators] = useState(false);
+  const [operatorActionMessage, setOperatorActionMessage] = useState<string | null>(null);
+
   // Cargar empresas desde backend
   const fetchEnterprises = async () => {
     setIsLoading(true);
@@ -144,6 +165,8 @@ export const EnterprisesManagerDashboard: React.FC = () => {
 
           return {
             ...item,
+            status: item.status || 'ACTIVE',
+            users: item.users || [],
             activeChannels,
             channelLimits: effectiveLimits,
             maxOperators: effectiveMaxOps,
@@ -180,7 +203,148 @@ export const EnterprisesManagerDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchEnterprises();
+    const interval = setInterval(fetchEnterprises, 5000);
+    return () => clearInterval(interval);
   }, []);
+
+  const handleToggleEnterpriseStatus = async (ent: EnterpriseItem) => {
+    if (ent.id === 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc') {
+      soundManager.playWarning();
+      alert('No es posible suspender la sede central KorevX Global.');
+      return;
+    }
+    const newStatus: 'ACTIVE' | 'SUSPENDED' = ent.status === 'SUSPENDED' ? 'ACTIVE' : 'SUSPENDED';
+    const confirmMsg = newStatus === 'SUSPENDED'
+      ? `¿Estás seguro de BLOQUEAR y SUSPENDER el acceso a la empresa "${ent.name}"?\n\nNingún usuario (ni administradores ni operadores) de esta empresa podrá iniciar sesión mientras esté suspendida.`
+      : `¿Reactivar el acceso a la empresa "${ent.name}"?`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      await axios.patch(`/api/v1/enterprises/${ent.id}/status`, { status: newStatus });
+      setEnterprises((prev) =>
+        prev.map((item) => (item.id === ent.id ? { ...item, status: newStatus } : item))
+      );
+      soundManager.playSuccess();
+      fetchEnterprises();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error actualizando estado de la empresa');
+    }
+  };
+
+  const handleOpenOperatorsModal = async (ent: EnterpriseItem) => {
+    setSelectedEnterpriseForOperators(ent);
+    setOperatorActionMessage(null);
+    setIsLoadingOperators(true);
+    try {
+      const res = await axios.get(`/api/v1/enterprises/${ent.id}/operators`);
+      if (Array.isArray(res.data) && res.data.length > 0) {
+        setEnterpriseOperatorsList(res.data);
+      } else if (ent.users && ent.users.length > 0) {
+        setEnterpriseOperatorsList(ent.users);
+      } else {
+        const localAgentsStr = localStorage.getItem(`korevx_agents_${ent.id}`);
+        if (localAgentsStr) {
+          try {
+            const list = JSON.parse(localAgentsStr);
+            setEnterpriseOperatorsList(
+              list.map((a: any) => ({
+                id: a.id,
+                name: a.name,
+                email: a.email,
+                role: a.role || 'Operador',
+                isOnline: !!a.isOnline,
+                isBlocked: !!a.isBlocked,
+                status: a.isBlocked ? 'BLOCKED' : 'ACTIVE',
+              }))
+            );
+          } catch {}
+        } else {
+          setEnterpriseOperatorsList([]);
+        }
+      }
+    } catch {
+      if (ent.users && ent.users.length > 0) {
+        setEnterpriseOperatorsList(ent.users);
+      } else {
+        const localAgentsStr = localStorage.getItem(`korevx_agents_${ent.id}`);
+        if (localAgentsStr) {
+          try {
+            const list = JSON.parse(localAgentsStr);
+            setEnterpriseOperatorsList(
+              list.map((a: any) => ({
+                id: a.id,
+                name: a.name,
+                email: a.email,
+                role: a.role || 'Operador',
+                isOnline: !!a.isOnline,
+                isBlocked: !!a.isBlocked,
+                status: a.isBlocked ? 'BLOCKED' : 'ACTIVE',
+              }))
+            );
+          } catch {}
+        } else {
+          setEnterpriseOperatorsList([]);
+        }
+      }
+    } finally {
+      setIsLoadingOperators(false);
+    }
+  };
+
+  const handleToggleOperatorBlock = async (op: OperatorItem) => {
+    if (!selectedEnterpriseForOperators) return;
+    const newBlocked = !op.isBlocked;
+    try {
+      await axios.patch(`/api/v1/enterprises/${selectedEnterpriseForOperators.id}/operators/${op.id}/status`, {
+        isBlocked: newBlocked,
+      });
+      setEnterpriseOperatorsList((prev) =>
+        prev.map((item) =>
+          item.id === op.id ? { ...item, isBlocked: newBlocked, status: newBlocked ? 'BLOCKED' : 'ACTIVE' } : item
+        )
+      );
+      setOperatorActionMessage(`Acceso de "${op.name}" ${newBlocked ? 'BLOQUEADO' : 'DESBLOQUEADO'} exitosamente.`);
+      soundManager.playSuccess();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error actualizando estado del operador');
+    }
+  };
+
+  const handleResetOperatorPassword = async (op: OperatorItem) => {
+    try {
+      await axios.patch(`/api/v1/auth/reset-password/${op.id}`);
+      setOperatorActionMessage(`Contraseña restablecida a 123456789 para "${op.name}" (${op.email}). Cambio obligatorio.`);
+      soundManager.playSuccess();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al restablecer contraseña');
+    }
+  };
+
+  const handleDeleteOperator = async (op: OperatorItem) => {
+    if (!selectedEnterpriseForOperators) return;
+    if (!window.confirm(`¿Confirmas la eliminación del operador "${op.name}" (${op.email}) de la plataforma?`)) return;
+
+    try {
+      await axios.delete(`/api/v1/enterprises/${selectedEnterpriseForOperators.id}/operators/${op.id}`);
+      setEnterpriseOperatorsList((prev) => prev.filter((item) => item.id !== op.id));
+      try {
+        const localAgentsStr = localStorage.getItem(`korevx_agents_${selectedEnterpriseForOperators.id}`);
+        if (localAgentsStr) {
+          const list = JSON.parse(localAgentsStr);
+          localStorage.setItem(
+            `korevx_agents_${selectedEnterpriseForOperators.id}`,
+            JSON.stringify(list.filter((a: any) => a.id !== op.id))
+          );
+        }
+      } catch {}
+      setOperatorActionMessage(`Operador "${op.name}" eliminado definitivamente.`);
+      soundManager.playWarning();
+      fetchEnterprises();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al eliminar operador');
+    }
+  };
 
   const handleCreateEnterprise = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -747,10 +911,31 @@ export const EnterprisesManagerDashboard: React.FC = () => {
                       </div>
                     </div>
 
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold font-tech border bg-emerald-500/15 text-emerald-400 border-emerald-500/30 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                      <span>Activa</span>
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-tech border flex items-center gap-1 ${
+                        ent.status === 'SUSPENDED'
+                          ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                          : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${ent.status === 'SUSPENDED' ? 'bg-rose-400' : 'bg-emerald-400'}`}></span>
+                        <span>{ent.status === 'SUSPENDED' ? 'Suspendida' : 'Activa'}</span>
+                      </span>
+
+                      {ent.id !== 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc' && (
+                        <button
+                          onClick={() => handleToggleEnterpriseStatus(ent)}
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-tech font-bold border transition flex items-center gap-1 ${
+                            ent.status === 'SUSPENDED'
+                              ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                              : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border-rose-500/30'
+                          }`}
+                          title={ent.status === 'SUSPENDED' ? 'Reactivar acceso a toda la empresa' : 'Bloquear acceso a toda la empresa'}
+                        >
+                          <i className={`fa-solid ${ent.status === 'SUSPENDED' ? 'fa-lock-open' : 'fa-ban'} text-[9px]`}></i>
+                          <span>{ent.status === 'SUSPENDED' ? 'Reactivar' : 'Bloquear'}</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Datos del Administrador */}
@@ -850,13 +1035,23 @@ export const EnterprisesManagerDashboard: React.FC = () => {
                       </span>
                     </div>
 
-                    <div className="p-2 rounded-xl bg-[#080C14] border border-[#141B29] text-center">
-                      <span className="text-[10px] text-slate-400 font-tech uppercase block">
-                        Límite de Operadores
-                      </span>
-                      <span className="text-xs font-bold text-white font-tech">
-                        {ent.operatorCount || 1} / {ent.maxOperators || 5}
-                      </span>
+                    <div className="p-2 rounded-xl bg-[#080C14] border border-[#141B29] text-center flex flex-col justify-between">
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-tech uppercase block">
+                          Límite de Operadores
+                        </span>
+                        <span className="text-xs font-bold text-white font-tech">
+                          {ent.operatorCount || 0} / {ent.maxOperators || 5}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleOpenOperatorsModal(ent)}
+                        className="mt-1 w-full py-1 rounded-lg bg-[#00F0FF]/10 hover:bg-[#00F0FF]/20 text-[#00F0FF] border border-[#00F0FF]/30 text-[10px] font-tech font-bold flex items-center justify-center gap-1 transition"
+                        title="Ver operarios, restablecer contraseñas, bloquear o eliminar"
+                      >
+                        <i className="fa-solid fa-users-gear text-[9px]"></i>
+                        <span>Gestionar Operadores</span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1634,6 +1829,149 @@ export const EnterprisesManagerDashboard: React.FC = () => {
                       <span>Sí, Eliminar Definitivamente</span>
                     </>
                   )}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+      {/* Modal de Gestión de Operadores por Empresa (Portal) */}
+      {selectedEnterpriseForOperators &&
+        createPortal(
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+            <div className="bg-[#05080F] border border-[#00F0FF]/40 rounded-3xl p-6 sm:p-7 max-w-2xl w-full shadow-2xl shadow-cyan-950/50 space-y-4 max-h-[90vh] flex flex-col">
+              {/* Encabezado */}
+              <div className="flex items-center justify-between pb-3 border-b border-[#141B29]">
+                <div className="flex items-center gap-3">
+                  <span className="w-10 h-10 rounded-2xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF] flex items-center justify-center text-base">
+                    <i className="fa-solid fa-users-gear"></i>
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-bold text-white font-tech">
+                      Gestión de Operadores — {selectedEnterpriseForOperators.name}
+                    </h3>
+                    <p className="text-[11px] text-[#00F0FF] font-medium font-tech">
+                      Límite de la empresa: {selectedEnterpriseForOperators.maxOperators || 5} operadores máx.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedEnterpriseForOperators(null)}
+                  className="w-7 h-7 rounded-lg bg-[#0E1524] text-slate-400 hover:text-white flex items-center justify-center text-xs"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              {/* Mensaje de Acción Exitosa */}
+              {operatorActionMessage && (
+                <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-xs font-tech flex items-center gap-2">
+                  <i className="fa-solid fa-circle-check text-emerald-400"></i>
+                  <span>{operatorActionMessage}</span>
+                </div>
+              )}
+
+              {/* Lista de Operadores */}
+              <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
+                {isLoadingOperators ? (
+                  <div className="py-12 text-center text-slate-400 font-tech">
+                    <i className="fa-solid fa-spinner fa-spin text-2xl text-[#00F0FF] mb-2"></i>
+                    <p className="text-xs">Cargando operarios de la empresa...</p>
+                  </div>
+                ) : enterpriseOperatorsList.length === 0 ? (
+                  <div className="py-10 text-center rounded-2xl bg-[#080C14] border border-[#141B29] text-slate-500 font-tech">
+                    <i className="fa-solid fa-user-slash text-3xl mb-2 text-slate-600"></i>
+                    <p className="text-xs">No hay operadores registrados en esta empresa todavía.</p>
+                    <p className="text-[11px] text-slate-600 mt-0.5">El administrador de la empresa puede dar de alta hasta {selectedEnterpriseForOperators.maxOperators || 5} operarios.</p>
+                  </div>
+                ) : (
+                  enterpriseOperatorsList.map((op) => (
+                    <div
+                      key={op.id}
+                      className="p-3.5 rounded-2xl bg-[#080C14] border border-[#141B29] hover:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold font-tech flex-shrink-0 border ${
+                          op.isBlocked
+                            ? 'bg-rose-950/40 border-rose-500/40 text-rose-400'
+                            : 'bg-[#111622] border-[#1C2A44] text-[#00F0FF]'
+                        }`}>
+                          {op.avatar || op.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-bold text-white text-xs truncate">{op.name}</p>
+                            <span className={`px-2 py-0.2 rounded text-[9px] font-bold font-tech border ${
+                              op.role === 'Administrador'
+                                ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                                : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30'
+                            }`}>
+                              {op.role}
+                            </span>
+                            <span className={`px-2 py-0.2 rounded-full text-[9px] font-bold font-tech border flex items-center gap-1 ${
+                              op.isBlocked
+                                ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                                : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                            }`}>
+                              <span className={`w-1 h-1 rounded-full ${op.isBlocked ? 'bg-rose-400' : 'bg-emerald-400'}`}></span>
+                              <span>{op.isBlocked ? 'Bloqueado' : 'Activo'}</span>
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 font-mono truncate">{op.email}</p>
+                        </div>
+                      </div>
+
+                      {/* Acciones para este operador */}
+                      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => handleResetOperatorPassword(op)}
+                          className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-tech font-bold flex items-center gap-1 transition"
+                          title="Restablecer clave temporal a 123456789"
+                        >
+                          <i className="fa-solid fa-key text-[9px]"></i>
+                          <span>Clave 123456789</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleToggleOperatorBlock(op)}
+                          className={`px-2.5 py-1.5 rounded-lg text-[10px] font-tech font-bold border transition flex items-center gap-1 ${
+                            op.isBlocked
+                              ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                              : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border-rose-500/30'
+                          }`}
+                          title={op.isBlocked ? 'Desbloquear acceso a la plataforma' : 'Bloquear acceso a la plataforma'}
+                        >
+                          <i className={`fa-solid ${op.isBlocked ? 'fa-lock-open' : 'fa-ban'} text-[9px]`}></i>
+                          <span>{op.isBlocked ? 'Desbloquear' : 'Bloquear'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteOperator(op)}
+                          className="w-7 h-7 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 flex items-center justify-center text-xs transition"
+                          title="Eliminar este operador definitivamente"
+                        >
+                          <i className="fa-solid fa-trash text-[10px]"></i>
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Pie del modal */}
+              <div className="pt-3 border-t border-[#141B29] flex items-center justify-between">
+                <span className="text-[10px] text-slate-500 font-tech">
+                  Total Operarios: {enterpriseOperatorsList.length} / {selectedEnterpriseForOperators.maxOperators || 5} permitidos
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedEnterpriseForOperators(null)}
+                  className="px-4 py-2 rounded-xl bg-[#080C14] hover:bg-[#0E1524] border border-[#141B29] text-xs font-semibold text-slate-300 hover:text-white transition font-tech"
+                >
+                  Cerrar
                 </button>
               </div>
             </div>

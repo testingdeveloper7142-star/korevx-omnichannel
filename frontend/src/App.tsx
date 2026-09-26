@@ -194,27 +194,7 @@ function AppContent({ user }: { user: AuthUser }) {
     return { FACEBOOK: 2, INSTAGRAM: 1, WHATSAPP: 1, TIKTOK: 0 };
   });
 
-  useEffect(() => {
-    if (workspaceId) {
-      axios
-        .get('/api/v1/enterprises')
-        .then((res) => {
-          if (Array.isArray(res.data)) {
-            const match = res.data.find((e: any) => e.id === workspaceId);
-            if (match && match.channelLimits) {
-              setEnterpriseLimits(match.channelLimits);
-              localStorage.setItem(`korevx_channel_limits_${workspaceId}`, JSON.stringify(match.channelLimits));
-            }
-          }
-        })
-        .catch(() => {});
-    }
-  }, [workspaceId]);
-
-  const currentEnterpriseLimits = enterpriseLimits;
-
-  // Límite máximo de operadores asignado a este workspace por Super Admin
-  const currentEnterpriseMaxOperators = (() => {
+  const [currentEnterpriseMaxOperators, setCurrentEnterpriseMaxOperators] = useState<number>(() => {
     try {
       const saved = localStorage.getItem(`korevx_max_operators_${workspaceId}`);
       if (saved) return Number(saved) || 5;
@@ -228,7 +208,62 @@ function AppContent({ user }: { user: AuthUser }) {
       }
     } catch {}
     return 5;
-  })();
+  });
+
+  const [isEnterpriseSuspended, setIsEnterpriseSuspended] = useState(false);
+  const [isUserBlocked, setIsUserBlocked] = useState(false);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+
+    const syncLiveEnterpriseData = () => {
+      axios
+        .get('/api/v1/enterprises')
+        .then((res) => {
+          if (Array.isArray(res.data)) {
+            const match = res.data.find((e: any) => e.id === workspaceId);
+            if (match) {
+              if (match.channelLimits) {
+                setEnterpriseLimits(match.channelLimits);
+                localStorage.setItem(`korevx_channel_limits_${workspaceId}`, JSON.stringify(match.channelLimits));
+              }
+              if (typeof match.maxOperators === 'number') {
+                setCurrentEnterpriseMaxOperators(match.maxOperators);
+                localStorage.setItem(`korevx_max_operators_${workspaceId}`, String(match.maxOperators));
+              }
+              if (user && user.role !== 'SUPER_ADMIN') {
+                setIsEnterpriseSuspended(match.status === 'SUSPENDED');
+              }
+            }
+          }
+        })
+        .catch(() => {});
+
+      if (user && user.role !== 'SUPER_ADMIN') {
+        axios
+          .get(`/api/v1/enterprises/${workspaceId}/operators`)
+          .then((res) => {
+            if (Array.isArray(res.data) && res.data.length > 0) {
+              const myUser = res.data.find((u: any) => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());
+              if (myUser?.isBlocked) {
+                setIsUserBlocked(true);
+              } else {
+                setIsUserBlocked(false);
+              }
+              setAgents(res.data);
+              localStorage.setItem(`korevx_agents_${workspaceId}`, JSON.stringify(res.data));
+            }
+          })
+          .catch(() => {});
+      }
+    };
+
+    syncLiveEnterpriseData();
+    const interval = setInterval(syncLiveEnterpriseData, 4000);
+    return () => clearInterval(interval);
+  }, [workspaceId, user]);
+
+  const currentEnterpriseLimits = enterpriseLimits;
 
   // Registro de Auditoría Integral (Audit Log Ley 1581) con persistencia
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => {
@@ -1387,6 +1422,8 @@ function AppContent({ user }: { user: AuthUser }) {
 
           {currentView === 'settings' && user.role === 'ADMIN' && (
             <CompanySettingsDashboard
+              channelLimits={currentEnterpriseLimits}
+              maxOperators={currentEnterpriseMaxOperators}
               onUpdateWorkspaceName={(newName) => {
                 // Sincronización reactiva del nombre de la empresa
               }}
@@ -1595,6 +1632,50 @@ function AppContent({ user }: { user: AuthUser }) {
           </div>
         ))}
       </div>
+      {/* Bloqueo Total de Acceso si la Empresa fue Suspendida por Super Admin */}
+      {isEnterpriseSuspended && user?.role !== 'SUPER_ADMIN' && (
+        <div className="fixed inset-0 z-[999999] bg-[#030508]/95 backdrop-blur-2xl flex items-center justify-center p-6 text-center">
+          <div className="max-w-md w-full p-8 rounded-3xl bg-[#080C14] border-2 border-rose-500/60 shadow-2xl shadow-rose-950/70 space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center text-3xl mx-auto shadow-lg shadow-rose-500/20">
+              <i className="fa-solid fa-ban"></i>
+            </div>
+            <h2 className="text-xl font-bold text-white font-tech">Empresa Suspendida</h2>
+            <p className="text-xs text-slate-300 leading-relaxed font-tech">
+              El acceso para la organización <strong className="text-white">"{user.workspaceName || 'tu empresa'}"</strong> ha sido suspendido temporalmente por el Super Administrador de KorevX.
+            </p>
+            <p className="text-[11px] text-slate-500 font-tech">
+              Por razones de gobernanza y control, todas las operaciones han sido inhabilitadas. Contacta a soporte central para regularizar tu acceso.
+            </p>
+            <button
+              onClick={handleLogoutWithAudit}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold text-xs font-tech transition shadow-lg shadow-rose-600/30 uppercase tracking-wider"
+            >
+              Cerrar Sesión
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bloqueo Individual si el Usuario fue Bloqueado */}
+      {isUserBlocked && user?.role !== 'SUPER_ADMIN' && (
+        <div className="fixed inset-0 z-[999999] bg-[#030508]/95 backdrop-blur-2xl flex items-center justify-center p-6 text-center">
+          <div className="max-w-md w-full p-8 rounded-3xl bg-[#080C14] border-2 border-rose-500/60 shadow-2xl shadow-rose-950/70 space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center text-3xl mx-auto shadow-lg shadow-rose-500/20">
+              <i className="fa-solid fa-user-lock"></i>
+            </div>
+            <h2 className="text-xl font-bold text-white font-tech">Usuario Bloqueado</h2>
+            <p className="text-xs text-slate-300 leading-relaxed font-tech">
+              Tu cuenta individual ha sido bloqueada por el Administrador. No tienes permisos para gestionar ni responder conversaciones en la plataforma.
+            </p>
+            <button
+              onClick={handleLogoutWithAudit}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold text-xs font-tech transition shadow-lg shadow-rose-600/30 uppercase tracking-wider"
+            >
+              Cerrar Sesión
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

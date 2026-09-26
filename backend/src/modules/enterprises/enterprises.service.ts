@@ -237,6 +237,9 @@ export class EnterprisesService {
       let location = 'Bogotá, Colombia';
       let channelLimits: ChannelLimits = { FACEBOOK: 2, INSTAGRAM: 1, WHATSAPP: 1, TIKTOK: 0 };
 
+      let enterpriseStatus: 'ACTIVE' | 'SUSPENDED' = 'ACTIVE';
+      const userStatusMap: Record<string, boolean> = {};
+
       for (const log of ws.auditLogs) {
         const state = log.newState as any;
         if (state) {
@@ -254,11 +257,30 @@ export class EnterprisesService {
               TIKTOK: typeof state.channelLimits.TIKTOK === 'number' ? state.channelLimits.TIKTOK : channelLimits.TIKTOK,
             };
           }
+          if (state.status && (state.status === 'ACTIVE' || state.status === 'SUSPENDED')) {
+            enterpriseStatus = state.status;
+          }
+          if (log.resource === AuditResource.USER && log.resourceId && typeof state.isBlocked === 'boolean') {
+            userStatusMap[log.resourceId] = state.isBlocked;
+          }
         }
       }
 
       const totalRequests = ws._count.conversations * 12 + ws._count.auditLogs;
       const estimatedStorageMb = Math.round((ws._count.conversations * 0.8 + ws._count.auditLogs * 0.05 + ws._count.channels * 1.5) * 10) / 10;
+
+      const formattedUsers = ws.users.map((u) => ({
+        id: u.id,
+        email: u.email,
+        fullName: u.fullName,
+        role: u.role,
+        isOnline: u.isOnline,
+        isBlocked: !!userStatusMap[u.id],
+        status: userStatusMap[u.id] ? 'BLOCKED' : 'ACTIVE',
+        createdAt: u.createdAt,
+      }));
+
+      const agentUsers = ws.users.filter((u) => u.role === UserRole.AGENT);
 
       return {
         id: ws.id,
@@ -270,7 +292,8 @@ export class EnterprisesService {
         activeChannels: channelsList,
         channelLimits,
         maxOperators,
-        operatorCount: ws.users.length || 1,
+        operatorCount: agentUsers.length > 0 ? agentUsers.length : (ws.users.length > 1 ? ws.users.length - 1 : 0),
+        users: formattedUsers,
         monthlyApiRequests: totalRequests,
         quotaLimit,
         storageMb: estimatedStorageMb,
@@ -284,7 +307,7 @@ export class EnterprisesService {
           channel: ch,
           percent: channelsList.length > 0 ? Math.round(100 / channelsList.length) : 0,
         })),
-        status: 'ACTIVE',
+        status: enterpriseStatus,
         createdAt: ws.createdAt,
       };
     });
@@ -552,6 +575,294 @@ export class EnterprisesService {
       workspaceId,
       settings,
       message: 'Configuración de empresa actualizada exitosamente',
+    };
+  }
+
+  /**
+   * Bloquea o reactiva el acceso a una empresa completa (Workspace)
+   */
+  async toggleEnterpriseStatus(
+    workspaceId: string,
+    status: 'ACTIVE' | 'SUSPENDED',
+    requesterUserId?: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { id: workspaceId },
+    });
+
+    if (!workspace) {
+      throw new BadRequestException('Empresa no encontrada');
+    }
+
+    if (workspace.id === 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc' || workspace.slug === 'korevx-global') {
+      throw new BadRequestException('No es posible suspender la empresa central de KorevX');
+    }
+
+    await this.auditService.recordAudit({
+      workspaceId,
+      userId: requesterUserId,
+      action: AuditAction.STATUS_CHANGE,
+      resource: AuditResource.SETTINGS,
+      resourceId: workspaceId,
+      description: `Empresa "${workspace.name}" ha sido ${status === 'SUSPENDED' ? 'SUSPENDIDA (BLOQUEO DE ACCESO)' : 'REACTIVADA'}.`,
+      ipAddress: ipAddress || '127.0.0.1',
+      userAgent: userAgent || 'KorevX SuperAdmin WebApp',
+      newState: { status },
+    });
+
+    this.logger.log(`Estado de empresa ${workspace.name} cambiado a ${status}`);
+
+    return {
+      success: true,
+      workspaceId,
+      status,
+      message: `Empresa "${workspace.name}" ha sido ${status === 'SUSPENDED' ? 'suspendida y bloqueada para todos sus usuarios' : 'reactivada exitosamente'}.`,
+    };
+  }
+
+  /**
+   * Obtiene la lista completa de operadores/usuarios de una empresa con su estado de bloqueo
+   */
+  async getEnterpriseOperators(workspaceId: string) {
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      include: {
+        users: {
+          orderBy: { createdAt: 'asc' },
+        },
+        auditLogs: {
+          where: { resource: AuditResource.USER, action: AuditAction.STATUS_CHANGE },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    if (!workspace) {
+      throw new BadRequestException('Empresa no encontrada');
+    }
+
+    const userStatusMap: Record<string, boolean> = {};
+    for (const log of workspace.auditLogs) {
+      const st = log.newState as any;
+      if (log.resourceId && st && typeof st.isBlocked === 'boolean') {
+        userStatusMap[log.resourceId] = st.isBlocked;
+      }
+    }
+
+    return workspace.users.map((u) => {
+      const isBlocked = !!userStatusMap[u.id];
+      return {
+        id: u.id,
+        name: u.fullName,
+        email: u.email,
+        role: u.role === UserRole.ADMIN ? 'Administrador' : 'Operador',
+        isOnline: u.isOnline,
+        isBlocked,
+        status: isBlocked ? 'BLOCKED' : 'ACTIVE',
+        assignedCount: 0,
+        avgResponseTime: '0m 00s',
+        avatar: u.fullName.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase() || 'OP',
+        createdAt: u.createdAt,
+      };
+    });
+  }
+
+  /**
+   * Da de alta un nuevo Operador en la empresa respetando estrictamente el límite maxOperators
+   */
+  async createOperator(
+    workspaceId: string,
+    data: { fullName: string; email: string; role?: string },
+    requesterUserId?: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
+    if (!data.fullName || !data.email) {
+      throw new BadRequestException('El nombre y el correo del operador son obligatorios');
+    }
+
+    const emailClean = data.email.toLowerCase().trim();
+    const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!EMAIL_REGEX.test(emailClean)) {
+      throw new BadRequestException('El formato de correo no es válido. Debe contener un dominio válido (ej: usuario@empresa.com).');
+    }
+
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      include: {
+        users: true,
+        auditLogs: {
+          where: { resource: AuditResource.SETTINGS },
+          orderBy: { createdAt: 'asc' },
+          take: 50,
+        },
+      },
+    });
+
+    if (!workspace) {
+      throw new BadRequestException('Empresa no encontrada');
+    }
+
+    let maxOperators = 5;
+    for (const log of workspace.auditLogs) {
+      const st = log.newState as any;
+      if (st && typeof st.maxOperators === 'number') {
+        maxOperators = st.maxOperators;
+      }
+    }
+
+    // Contar operadores actuales (excluyendo admin principal o contando total de agentes)
+    const currentOperators = workspace.users.filter((u) => u.role === UserRole.AGENT);
+    if (currentOperators.length >= maxOperators) {
+      throw new BadRequestException(
+        `Has alcanzado el límite máximo de ${maxOperators} operador(es) permitido(s) para tu empresa. Contacta al Super Administrador para ampliar la cuota.`
+      );
+    }
+
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: emailClean },
+    });
+    if (existingUser) {
+      throw new ConflictException(`Ya existe un usuario registrado con el correo ${emailClean}`);
+    }
+
+    const defaultPassword = '123456789';
+    const passwordHash = crypto.createHash('sha256').update(defaultPassword).digest('hex');
+
+    const newUser = await this.prisma.user.create({
+      data: {
+        workspaceId,
+        email: emailClean,
+        fullName: data.fullName.trim(),
+        role: UserRole.AGENT,
+        passwordHash,
+        isOnline: false,
+      },
+    });
+
+    await this.auditService.recordAudit({
+      workspaceId,
+      userId: requesterUserId || newUser.id,
+      action: AuditAction.CREATE,
+      resource: AuditResource.USER,
+      resourceId: newUser.id,
+      description: `Operador "${newUser.fullName}" (${newUser.email}) creado en la empresa "${workspace.name}".`,
+      ipAddress: ipAddress || '127.0.0.1',
+      userAgent: userAgent || 'KorevX Omnichannel Client',
+      newState: {
+        id: newUser.id,
+        fullName: newUser.fullName,
+        email: newUser.email,
+        role: newUser.role,
+        isBlocked: false,
+      },
+    });
+
+    return {
+      success: true,
+      operator: {
+        id: newUser.id,
+        name: newUser.fullName,
+        email: newUser.email,
+        role: 'Operador',
+        isOnline: false,
+        isBlocked: false,
+        status: 'ACTIVE',
+        assignedCount: 0,
+        avgResponseTime: '0m 00s',
+        avatar: newUser.fullName.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase() || 'OP',
+        createdAt: newUser.createdAt,
+      },
+      message: `Operador ${newUser.fullName} creado exitosamente con clave temporal 123456789`,
+    };
+  }
+
+  /**
+   * Bloquea o desbloquea el acceso a un operador individual
+   */
+  async toggleUserBlock(
+    workspaceId: string,
+    userId: string,
+    isBlocked: boolean,
+    requesterUserId?: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Usuario no encontrado');
+    }
+
+    if (user.role === UserRole.SUPER_ADMIN) {
+      throw new BadRequestException('No es posible bloquear al Super Administrador');
+    }
+
+    await this.auditService.recordAudit({
+      workspaceId,
+      userId: requesterUserId,
+      action: AuditAction.STATUS_CHANGE,
+      resource: AuditResource.USER,
+      resourceId: userId,
+      description: `Usuario "${user.fullName}" (${user.email}) ha sido ${isBlocked ? 'BLOQUEADO' : 'DESBLOQUEADO'}.`,
+      ipAddress: ipAddress || '127.0.0.1',
+      userAgent: userAgent || 'KorevX SuperAdmin WebApp',
+      newState: { isBlocked, status: isBlocked ? 'BLOCKED' : 'ACTIVE' },
+    });
+
+    return {
+      success: true,
+      userId,
+      isBlocked,
+      message: `Usuario ${user.fullName} ${isBlocked ? 'bloqueado' : 'desbloqueado'} exitosamente.`,
+    };
+  }
+
+  /**
+   * Elimina a un operador de una empresa
+   */
+  async deleteOperator(
+    workspaceId: string,
+    operatorId: string,
+    requesterUserId?: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: operatorId },
+    });
+
+    if (!user) {
+      return { success: true, message: 'Usuario no encontrado o ya eliminado' };
+    }
+
+    if (user.role === UserRole.SUPER_ADMIN) {
+      throw new BadRequestException('No es posible eliminar al Super Administrador');
+    }
+
+    await this.auditService.recordAudit({
+      workspaceId,
+      userId: requesterUserId,
+      action: AuditAction.DELETE,
+      resource: AuditResource.USER,
+      resourceId: operatorId,
+      description: `Operador "${user.fullName}" (${user.email}) eliminado de la plataforma por Administrador.`,
+      ipAddress: ipAddress || '127.0.0.1',
+      userAgent: userAgent || 'KorevX Console',
+    });
+
+    await this.prisma.user.delete({
+      where: { id: operatorId },
+    });
+
+    return {
+      success: true,
+      operatorId,
+      message: `Operador ${user.fullName} eliminado exitosamente.`,
     };
   }
 

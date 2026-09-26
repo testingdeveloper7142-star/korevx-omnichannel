@@ -83,7 +83,7 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
     }
   };
 
-  const handleCreateChannel = (e: React.FormEvent) => {
+  const handleCreateChannel = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAccountName.trim()) return;
 
@@ -112,15 +112,21 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
       connectedAt: new Date().toISOString(),
     };
 
-    // 1. Persistir en backend si está disponible
-    axios.post('/api/v1/channels', {
-      workspaceId: effWorkspaceId,
-      platform: newPlatform,
-      accountName: newAccountName.trim(),
-      accountHandle: cleanHandle,
-    }).catch(() => {
-      console.warn('Backend channels post offline, conservando canal localmente');
-    });
+    // 1. Persistir en backend y validar cuota
+    try {
+      const res = await axios.post('/api/v1/channels', {
+        workspaceId: effWorkspaceId,
+        platform: newPlatform,
+        accountName: newAccountName.trim(),
+        accountHandle: cleanHandle,
+      });
+      if (res.data?.id) {
+        createdChannel.id = res.data.id;
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error vinculando el canal: cuota agotada o no permitida.');
+      return;
+    }
 
     if (onAddChannel) {
       onAddChannel(createdChannel);
@@ -468,10 +474,18 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
                     onChange={(e) => setNewPlatform(e.target.value as PlatformType)}
                     className="w-full bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl p-2.5 text-xs text-white"
                   >
-                    <option value="FACEBOOK">Facebook Fanpage ({channelCounts.FACEBOOK}/{effectiveLimits.FACEBOOK} en uso)</option>
-                    <option value="INSTAGRAM">Instagram Professional ({channelCounts.INSTAGRAM}/{effectiveLimits.INSTAGRAM} en uso)</option>
-                    <option value="WHATSAPP">WhatsApp Business API ({channelCounts.WHATSAPP}/{effectiveLimits.WHATSAPP} en uso)</option>
-                    <option value="TIKTOK">TikTok for Business ({channelCounts.TIKTOK}/{effectiveLimits.TIKTOK} en uso)</option>
+                    <option value="FACEBOOK" disabled={effectiveLimits.FACEBOOK <= 0 || channelCounts.FACEBOOK >= effectiveLimits.FACEBOOK}>
+                      Facebook Fanpage ({channelCounts.FACEBOOK}/{effectiveLimits.FACEBOOK} en uso){effectiveLimits.FACEBOOK <= 0 ? ' [NO INCLUIDO]' : channelCounts.FACEBOOK >= effectiveLimits.FACEBOOK ? ' [CUOTA LLENA]' : ''}
+                    </option>
+                    <option value="INSTAGRAM" disabled={effectiveLimits.INSTAGRAM <= 0 || channelCounts.INSTAGRAM >= effectiveLimits.INSTAGRAM}>
+                      Instagram Professional ({channelCounts.INSTAGRAM}/{effectiveLimits.INSTAGRAM} en uso){effectiveLimits.INSTAGRAM <= 0 ? ' [NO INCLUIDO]' : channelCounts.INSTAGRAM >= effectiveLimits.INSTAGRAM ? ' [CUOTA LLENA]' : ''}
+                    </option>
+                    <option value="WHATSAPP" disabled={effectiveLimits.WHATSAPP <= 0 || channelCounts.WHATSAPP >= effectiveLimits.WHATSAPP}>
+                      WhatsApp Business API ({channelCounts.WHATSAPP}/{effectiveLimits.WHATSAPP} en uso){effectiveLimits.WHATSAPP <= 0 ? ' [NO INCLUIDO]' : channelCounts.WHATSAPP >= effectiveLimits.WHATSAPP ? ' [CUOTA LLENA]' : ''}
+                    </option>
+                    <option value="TIKTOK" disabled={effectiveLimits.TIKTOK <= 0 || channelCounts.TIKTOK >= effectiveLimits.TIKTOK}>
+                      TikTok for Business ({channelCounts.TIKTOK}/{effectiveLimits.TIKTOK} en uso){effectiveLimits.TIKTOK <= 0 ? ' [NO INCLUIDO]' : channelCounts.TIKTOK >= effectiveLimits.TIKTOK ? ' [CUOTA LLENA]' : ''}
+                    </option>
                   </select>
                 </div>
 

@@ -6,11 +6,15 @@ import { soundManager } from '../../utils/audio';
 interface CompanySettingsDashboardProps {
   onUpdateWorkspaceName?: (newName: string) => void;
   onClearCompanyConversations?: () => void;
+  channelLimits?: { FACEBOOK: number; INSTAGRAM: number; WHATSAPP: number; TIKTOK: number };
+  maxOperators?: number;
 }
 
 export const CompanySettingsDashboard: React.FC<CompanySettingsDashboardProps> = ({
   onUpdateWorkspaceName,
   onClearCompanyConversations,
+  channelLimits: propChannelLimits,
+  maxOperators: propMaxOperators,
 }) => {
   const { user } = useAuth();
   const workspaceId = user?.workspaceId || 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc';
@@ -53,9 +57,19 @@ export const CompanySettingsDashboard: React.FC<CompanySettingsDashboardProps> =
     reader.readAsDataURL(file);
   };
 
-  // Cuotas de redes sociales y operadores asignadas por Super Admin (informativo)
-  const [channelLimits, setChannelLimits] = useState({ FACEBOOK: 2, INSTAGRAM: 1, WHATSAPP: 1, TIKTOK: 0 });
-  const [maxOperators, setMaxOperators] = useState(5);
+  // Cuotas de redes sociales y operadores asignadas por Super Admin (informativo y reactivo)
+  const [channelLimits, setChannelLimits] = useState(
+    propChannelLimits || { FACEBOOK: 2, INSTAGRAM: 1, WHATSAPP: 1, TIKTOK: 0 }
+  );
+  const [maxOperators, setMaxOperators] = useState(propMaxOperators || 5);
+
+  useEffect(() => {
+    if (propChannelLimits) setChannelLimits(propChannelLimits);
+  }, [propChannelLimits]);
+
+  useEffect(() => {
+    if (typeof propMaxOperators === 'number') setMaxOperators(propMaxOperators);
+  }, [propMaxOperators]);
 
   useEffect(() => {
     // 1. Cargar perfil guardado localmente para este workspace
@@ -76,14 +90,33 @@ export const CompanySettingsDashboard: React.FC<CompanySettingsDashboardProps> =
       }
     } catch {}
 
-    // 2. Cargar límites asignados por Super Admin
-    try {
-      const savedLimits = localStorage.getItem(`korevx_channel_limits_${workspaceId}`);
-      if (savedLimits) setChannelLimits(JSON.parse(savedLimits));
+    // 2. Cargar límites asignados por Super Admin directamente de API y localStorage
+    const fetchLimits = () => {
+      axios
+        .get('/api/v1/enterprises')
+        .then((res) => {
+          if (Array.isArray(res.data)) {
+            const match = res.data.find((e: any) => e.id === workspaceId);
+            if (match) {
+              if (match.channelLimits) setChannelLimits(match.channelLimits);
+              if (typeof match.maxOperators === 'number') setMaxOperators(match.maxOperators);
+            }
+          }
+        })
+        .catch(() => {
+          try {
+            const savedLimits = localStorage.getItem(`korevx_channel_limits_${workspaceId}`);
+            if (savedLimits) setChannelLimits(JSON.parse(savedLimits));
 
-      const savedMaxOp = localStorage.getItem(`korevx_max_operators_${workspaceId}`);
-      if (savedMaxOp) setMaxOperators(Number(savedMaxOp) || 5);
-    } catch {}
+            const savedMaxOp = localStorage.getItem(`korevx_max_operators_${workspaceId}`);
+            if (savedMaxOp) setMaxOperators(Number(savedMaxOp) || 5);
+          } catch {}
+        });
+    };
+
+    fetchLimits();
+    const interval = setInterval(fetchLimits, 4000);
+    return () => clearInterval(interval);
   }, [workspaceId]);
 
   const handleSaveSettings = async (e: React.FormEvent) => {
@@ -550,7 +583,21 @@ export const CompanySettingsDashboard: React.FC<CompanySettingsDashboardProps> =
         </div>
 
         {/* Botón de Guardado */}
-        <div className="flex items-center justify-end gap-3 pt-2">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+          <div>
+            {saveSuccess && (
+              <div className="px-4 py-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-xs font-tech flex items-center gap-2 shadow-lg shadow-emerald-950/40">
+                <i className="fa-solid fa-circle-check text-emerald-400"></i>
+                <span>¡Configuración guardada exitosamente en la plataforma!</span>
+              </div>
+            )}
+            {saveError && (
+              <div className="px-4 py-2.5 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs font-tech flex items-center gap-2 shadow-lg shadow-rose-950/40">
+                <i className="fa-solid fa-triangle-exclamation text-rose-400"></i>
+                <span>{saveError}</span>
+              </div>
+            )}
+          </div>
           <button
             type="submit"
             disabled={isSaving}

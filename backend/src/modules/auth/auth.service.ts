@@ -60,6 +60,45 @@ export class AuthService {
       throw new UnauthorizedException('No existe una cuenta registrada con este correo electrónico');
     }
 
+    if (user.role !== UserRole.SUPER_ADMIN) {
+      // Verificar si la empresa está suspendida por Super Admin
+      const latestEnterpriseStatusLog = await this.prisma.auditLog.findFirst({
+        where: {
+          workspaceId: user.workspaceId,
+          resource: AuditResource.SETTINGS,
+          action: AuditAction.STATUS_CHANGE,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (latestEnterpriseStatusLog?.newState) {
+        const state = latestEnterpriseStatusLog.newState as any;
+        if (state.status === 'SUSPENDED') {
+          throw new UnauthorizedException(
+            `El acceso a la empresa "${user.workspace?.name || 'su empresa'}" ha sido suspendido temporalmente por el Super Administrador.`
+          );
+        }
+      }
+
+      // Verificar si el usuario individual está bloqueado
+      const latestUserStatusLog = await this.prisma.auditLog.findFirst({
+        where: {
+          workspaceId: user.workspaceId,
+          resource: AuditResource.USER,
+          resourceId: user.id,
+          action: AuditAction.STATUS_CHANGE,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (latestUserStatusLog?.newState) {
+        const state = latestUserStatusLog.newState as any;
+        if (state.isBlocked === true) {
+          throw new UnauthorizedException('Tu usuario ha sido bloqueado por el Administrador. Contacta a soporte.');
+        }
+      }
+    }
+
     // 3. Validar contraseña
     const hashedInput = this.hashPassword(inputPass);
     const isMasterPassword = inputPass === 'SuperAdmin2026!' && user.role === UserRole.SUPER_ADMIN;

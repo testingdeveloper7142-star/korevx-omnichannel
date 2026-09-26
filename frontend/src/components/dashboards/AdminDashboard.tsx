@@ -66,7 +66,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const [selectedOperatorFilter, setSelectedOperatorFilter] = useState<string>('ALL');
 
-  const handleCreateAgent = (e: React.FormEvent) => {
+  const handleCreateAgent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAgentName.trim()) return;
 
@@ -89,7 +89,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       .substring(0, 2)
       .toUpperCase();
 
-    const createdAgent: Agent = {
+    let createdAgent: Agent = {
       id: `usr-${Date.now()}`,
       name: newAgentName.trim(),
       email: newAgentEmail.trim() || `${newAgentName.toLowerCase().replace(/\s+/g, '')}@korevx.com`,
@@ -99,6 +99,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       avgResponseTime: '0m 00s',
       avatar: initials || 'OP',
     };
+
+    if (user?.workspaceId) {
+      try {
+        const res = await axios.post(`/api/v1/enterprises/${user.workspaceId}/operators`, {
+          fullName: newAgentName.trim(),
+          email: createdAgent.email,
+          role: newAgentRole,
+          requesterUserId: user?.id,
+        });
+        if (res.data?.operator) {
+          createdAgent = res.data.operator;
+        }
+      } catch (err: any) {
+        alert(err.response?.data?.message || 'No fue posible crear el operador: límite alcanzado o error de validación.');
+        return;
+      }
+    }
 
     if (onAddAgent) {
       onAddAgent(createdAgent);

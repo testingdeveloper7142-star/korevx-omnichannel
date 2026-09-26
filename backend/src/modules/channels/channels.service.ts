@@ -102,6 +102,45 @@ export class ChannelsService {
     accountName: string;
     accountHandle?: string;
   }) {
+    // 1. Validar cuota permitida para esta red social en este workspace
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { id: dto.workspaceId },
+      include: {
+        channels: {
+          where: { platform: dto.platform, isActive: true },
+        },
+        auditLogs: {
+          where: { resource: { in: ['SETTINGS', 'USER'] as any } },
+          orderBy: { createdAt: 'asc' },
+          take: 50,
+        },
+      },
+    });
+
+    if (workspace) {
+      let limitForPlatform = 1;
+      let hasCustomLimits = false;
+      for (const log of workspace.auditLogs) {
+        const state = log.newState as any;
+        if (state && state.channelLimits && typeof state.channelLimits[dto.platform] === 'number') {
+          limitForPlatform = state.channelLimits[dto.platform];
+          hasCustomLimits = true;
+        }
+      }
+
+      if (hasCustomLimits && limitForPlatform <= 0) {
+        throw new BadRequestException(
+          `No tienes cuota asignada para conectar canales de ${dto.platform} (Límite: 0 permitidos). Contacta al Super Administrador para solicitar cuota.`
+        );
+      }
+
+      if (hasCustomLimits && workspace.channels.length >= limitForPlatform) {
+        throw new BadRequestException(
+          `Has alcanzado el límite máximo de ${limitForPlatform} canal(es) de ${dto.platform} asignados a tu empresa.`
+        );
+      }
+    }
+
     const extId = `ext-${dto.platform.toLowerCase()}-${Date.now()}`;
     return this.prisma.channelAccount.create({
       data: {
