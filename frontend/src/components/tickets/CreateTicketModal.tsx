@@ -4,6 +4,8 @@ import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { TicketType, TicketCategory, TicketPriority } from '../../types';
 import { soundManager } from '../../utils/audio';
+import { ticketEventBus } from '../../utils/ticketEvents';
+import { socketService } from '../../services/socket';
 
 interface CreateTicketModalProps {
   isOpen: boolean;
@@ -51,7 +53,7 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
     setErrorMsg(null);
 
     try {
-      await axios.post('/api/v1/tickets', {
+      const res = await axios.post('/api/v1/tickets', {
         creatorUserId: user?.id,
         type: isOperator ? 'OPERATOR_TO_ADMIN' : type,
         category,
@@ -62,15 +64,34 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
         supportModeRequested: type === 'ADMIN_TO_SUPERADMIN' ? supportModeRequested : false,
       });
 
+      const createdTicket = res.data;
+      const ticketNum = createdTicket?.ticketNumber || Math.floor(1000 + Math.random() * 9000);
+
+      // Emitir en el bus y websocket para que le llegue al Admin en tiempo real
+      const eventPayload = {
+        type: 'TICKET_CREATED' as const,
+        ticket: {
+          id: createdTicket?.id,
+          ticketNumber: ticketNum,
+          title: title.trim(),
+          createdById: user?.id,
+          creatorName: user?.fullName || 'Operador',
+          workspaceId: user?.workspaceId,
+        },
+      };
+
+      ticketEventBus.emit(eventPayload);
+      socketService.emitTicketCreate(eventPayload.ticket);
+
       soundManager.playNotification();
 
-      // Guardar notificación del sistema
+      // Guardar notificación del sistema para el creador
       const savedNotifs = localStorage.getItem('korevx_notifications');
       const notifs = savedNotifs ? JSON.parse(savedNotifs) : [];
       notifs.unshift({
         id: 'notif-' + Date.now(),
-        title: '🎫 Nuevo Ticket Registrado',
-        message: `${user?.fullName || 'Operador'} ha creado el ticket: "${title.trim()}".`,
+        title: `🎫 Ticket #${ticketNum} Registrado`,
+        message: `Has creado exitosamente el ticket: "${title.trim()}". Notificación enviada al Administrador.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         type: 'ticket',
         read: false,

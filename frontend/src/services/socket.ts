@@ -141,6 +141,23 @@ class WebSocketService {
     this.socket?.on('template:sync', callback);
   }
 
+  // Sincronización de Tickets en tiempo real
+  emitTicketCreate(ticket: any) {
+    this.socket?.emit('ticket:create', ticket);
+  }
+
+  onTicketCreated(callback: (ticket: any) => void) {
+    this.socket?.on('ticket:created', callback);
+  }
+
+  emitTicketUpdate(data: any) {
+    this.socket?.emit('ticket:update', data);
+  }
+
+  onTicketUpdated(callback: (data: any) => void) {
+    this.socket?.on('ticket:updated', callback);
+  }
+
   disconnect() {
     if (this.socket) {
       this.socket.disconnect();

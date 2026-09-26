@@ -4,6 +4,8 @@ import { useAuth } from '../../context/AuthContext';
 import { InternalTicket, TicketStatus, TicketPriority } from '../../types';
 import { CreateTicketModal } from './CreateTicketModal';
 import { soundManager } from '../../utils/audio';
+import { ticketEventBus } from '../../utils/ticketEvents';
+import { socketService } from '../../services/socket';
 
 interface TicketsViewProps {
   availableAgents?: Array<{ id: string; name: string }>;
@@ -35,20 +37,57 @@ export const TicketsView: React.FC<TicketsViewProps> = ({ availableAgents = [] }
 
   useEffect(() => {
     loadTickets();
+
+    const unsubscribe = ticketEventBus.subscribe(() => {
+      loadTickets();
+    });
+
+    socketService.onTicketCreated(() => {
+      loadTickets();
+    });
+
+    socketService.onTicketUpdated(() => {
+      loadTickets();
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, [user?.workspaceId]);
 
   const handleUpdateTicketStatus = async (ticketId: string, status: TicketStatus) => {
     try {
       const targetTicket = tickets.find((t) => t.id === ticketId);
+      const resNote = resolutionNote.trim() || undefined;
+
       await axios.patch(`/api/v1/tickets/${ticketId}/status`, {
         status,
-        resolutionNotes: resolutionNote.trim() || undefined,
+        resolutionNotes: resNote,
         userId: user?.id,
       });
       setResolvingTicketId(null);
       setResolutionNote('');
 
-      // Notificaciones y Efectos Sonoros
+      // Emitir evento para el operador en tiempo real
+      const eventPayload = {
+        type: 'TICKET_UPDATED' as const,
+        ticket: {
+          id: ticketId,
+          ticketNumber: targetTicket?.ticketNumber,
+          title: targetTicket?.title || 'Incidencia',
+          status,
+          createdById: targetTicket?.createdById,
+          creatorName: targetTicket?.createdBy?.fullName,
+          updatedByName: user?.fullName || 'Supervisor',
+          resolutionNotes: resNote,
+          workspaceId: user?.workspaceId,
+        },
+      };
+
+      ticketEventBus.emit(eventPayload);
+      socketService.emitTicketUpdate(eventPayload.ticket);
+
+      // Notificaciones y Efectos Sonoros locales
       const savedNotifs = localStorage.getItem('korevx_notifications');
       const notifs = savedNotifs ? JSON.parse(savedNotifs) : [];
 

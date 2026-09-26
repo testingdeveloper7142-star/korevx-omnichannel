@@ -18,6 +18,7 @@ import { Conversation, PlatformType, InteractionType, ConversationStatus, Channe
 import { api } from './services/api';
 import { socketService } from './services/socket';
 import { soundManager } from './utils/audio';
+import { ticketEventBus, TicketBroadcastEvent } from './utils/ticketEvents';
 
 const initialQuickTemplates: QuickResponse[] = [
   {
@@ -880,11 +881,59 @@ function AppContent({ user }: { user: AuthUser }) {
       }
     }, 5000);
 
+    // 8. Eventos de Tickets en tiempo real (Notificaciones a Admin y Operador)
+    const handleIncomingTicketCreated = (data: any) => {
+      if (user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') {
+        if (!data.workspaceId || data.workspaceId === workspaceId) {
+          soundManager.playNotification();
+          addNotification(
+            `🎫 Nuevo Ticket #${data.ticketNumber || ''}`,
+            `El operador ${data.operatorName || data.creatorName || 'del equipo'} ha creado el ticket: "${data.title}".`,
+            'ticket'
+          );
+        }
+      }
+    };
+
+    const handleIncomingTicketUpdated = (data: any) => {
+      const isTargetOperator = user?.id === data.createdById || user?.role === 'AGENT';
+      if (isTargetOperator && (!data.workspaceId || data.workspaceId === workspaceId)) {
+        if (data.status === 'IN_REVIEW') {
+          soundManager.playNotification();
+          addNotification(
+            `📋 Ticket #${data.ticketNumber || ''} en Revisión`,
+            `El supervisor ${data.updatedByName || 'Administrador'} ha tomado tu ticket: "${data.title}".`,
+            'assignment'
+          );
+        } else if (data.status === 'RESOLVED') {
+          soundManager.playSuccess();
+          const noteText = data.resolutionNotes ? `: "${data.resolutionNotes}"` : '.';
+          addNotification(
+            `✅ Ticket #${data.ticketNumber || ''} Resuelto`,
+            `Tu ticket "${data.title}" fue marcado como resuelto por ${data.updatedByName || 'Supervisor'}${noteText}`,
+            'general'
+          );
+        }
+      }
+    };
+
+    socketService.onTicketCreated(handleIncomingTicketCreated);
+    socketService.onTicketUpdated(handleIncomingTicketUpdated);
+
+    const unsubscribeTicketBus = ticketEventBus.subscribe((evt: TicketBroadcastEvent) => {
+      if (evt.type === 'TICKET_CREATED') {
+        handleIncomingTicketCreated(evt.ticket);
+      } else if (evt.type === 'TICKET_UPDATED') {
+        handleIncomingTicketUpdated(evt.ticket);
+      }
+    });
+
     return () => {
       clearInterval(syncInterval);
+      unsubscribeTicketBus();
       socketService.disconnect();
     };
-  }, [workspaceId]);
+  }, [workspaceId, user?.id, user?.role]);
 
   const [supportModeInfo, setSupportModeInfo] = useState<{
     active: boolean;

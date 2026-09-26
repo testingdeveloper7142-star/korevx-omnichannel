@@ -154,6 +154,24 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.emit('template:sync', this.sharedTemplates);
   }
 
+  @SubscribeMessage('ticket:create')
+  handleTicketCreate(@ConnectedSocket() client: Socket, @MessageBody() data: any) {
+    this.logger.log(`Nuevo ticket emitido vía WebSocket: #${data?.ticketNumber} (${data?.title})`);
+    this.server.emit('ticket:created', data);
+    if (data?.workspaceId) {
+      this.server.to(`workspace:${data.workspaceId}`).emit('ticket:created', data);
+    }
+  }
+
+  @SubscribeMessage('ticket:update')
+  handleTicketUpdate(@ConnectedSocket() client: Socket, @MessageBody() data: any) {
+    this.logger.log(`Ticket actualizado vía WebSocket: #${data?.ticketNumber} (${data?.status})`);
+    this.server.emit('ticket:updated', data);
+    if (data?.workspaceId) {
+      this.server.to(`workspace:${data.workspaceId}`).emit('ticket:updated', data);
+    }
+  }
+
   /**
    * Notifica a todos los clientes del workspace que ha llegado un nuevo mensaje o comentario
    */
