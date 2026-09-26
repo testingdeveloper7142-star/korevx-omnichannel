@@ -63,6 +63,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       return;
     }
 
+    const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (newAgentEmail.trim() && !EMAIL_REGEX.test(newAgentEmail.trim())) {
+      alert('El formato de correo no es válido. Debe incluir un dominio válido completo (ej: operador@empresa.com).');
+      return;
+    }
+
     const initials = newAgentName
       .trim()
       .split(' ')

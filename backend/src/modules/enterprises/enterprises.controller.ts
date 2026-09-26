@@ -106,4 +106,37 @@ export class EnterprisesController {
 
     return this.enterprisesService.deleteEnterprise(id, userId, ipAddress, userAgent);
   }
+
+  @Patch(':id/settings')
+  @ApiOperation({ summary: 'Actualizar configuración propia de la empresa (nombre, logo, contacto)' })
+  async updateEnterpriseSettings(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    const rawIp = req.headers['x-forwarded-for'] as string;
+    const ipAddress = rawIp ? rawIp.split(',')[0].trim() : req.socket.remoteAddress || '127.0.0.1';
+    const userAgent = (req.headers['user-agent'] as string) || 'KorevX Omnichannel Client';
+
+    return this.enterprisesService.updateEnterpriseSettings(
+      id,
+      body,
+      body.requesterUserId,
+      ipAddress,
+      userAgent,
+    );
+  }
+
+  @Post('purge-all')
+  @ApiOperation({ summary: 'Eliminar todas las empresas y datos de prueba manteniendo solo el Super Admin' })
+  async purgeAllEnterprises(
+    @Req() req: Request,
+    @Body() body: { requesterUserId?: string },
+  ) {
+    const rawIp = req.headers['x-forwarded-for'] as string;
+    const ipAddress = rawIp ? rawIp.split(',')[0].trim() : req.socket.remoteAddress || '127.0.0.1';
+    const userAgent = (req.headers['user-agent'] as string) || 'KorevX SuperAdmin WebApp';
+
+    return this.enterprisesService.purgeAllEnterprises(body.requesterUserId, ipAddress, userAgent);
+  }
 }

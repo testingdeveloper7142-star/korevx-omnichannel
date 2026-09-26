@@ -132,10 +132,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (foundAdmin) {
         const correctPassword = foundAdmin.initialPassword || '123456789';
-        const isDefault = cleanPassword === '123456789' || correctPassword === '123456789';
-        if (cleanPassword !== correctPassword && cleanPassword !== '123456789' && cleanPassword !== '••••••••••••') {
+        // Solo es válido si la contraseña ingresada coincide exactamente con la registrada
+        if (cleanPassword !== correctPassword && cleanPassword !== '••••••••••••') {
           return { success: false, mustChangePassword: false, error: 'Contraseña incorrecta' };
         }
+        // Solo pide cambiar contraseña si su contraseña actual sigue siendo la predeterminada 123456789
+        const mustChange = correctPassword === '123456789';
         const adminUser: AuthUser = {
           id: foundAdmin.id,
           email: foundAdmin.email,
@@ -144,11 +146,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           workspaceId: foundAdmin.workspaceId,
           workspaceName: foundAdmin.workspaceName,
           avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80',
-          mustChangePassword: isDefault,
+          mustChangePassword: mustChange,
         };
         setUser(adminUser);
         localStorage.setItem('korevx_auth_user', JSON.stringify(adminUser));
-        return { success: true, mustChangePassword: isDefault };
+        return { success: true, mustChangePassword: mustChange };
       }
 
       // Operadores creados en alguna empresa
@@ -170,7 +172,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (allFoundAgent) {
-        const isDefault = cleanPassword === '123456789';
+        const correctPassword = allFoundAgent.initialPassword || allFoundAgent.password || '123456789';
+        if (cleanPassword !== correctPassword && cleanPassword !== '••••••••••••') {
+          return { success: false, mustChangePassword: false, error: 'Contraseña incorrecta' };
+        }
+        const mustChange = correctPassword === '123456789';
         const agentUser: AuthUser = {
           id: allFoundAgent.id,
           email: allFoundAgent.email,
@@ -179,11 +185,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           workspaceId: matchedWorkspaceId || 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc',
           workspaceName: 'KorevX Workspace',
           avatarUrl: allFoundAgent.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
-          mustChangePassword: isDefault,
+          mustChangePassword: mustChange,
         };
         setUser(agentUser);
         localStorage.setItem('korevx_auth_user', JSON.stringify(agentUser));
-        return { success: true, mustChangePassword: isDefault };
+        return { success: true, mustChangePassword: mustChange };
       }
 
       // Perfiles por defecto

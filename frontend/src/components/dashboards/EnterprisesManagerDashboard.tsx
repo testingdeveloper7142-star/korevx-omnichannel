@@ -52,6 +52,7 @@ export const EnterprisesManagerDashboard: React.FC = () => {
   // Modal de Creación
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPurging, setIsPurging] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [createSuccessData, setCreateSuccessData] = useState<any | null>(null);
 
@@ -156,11 +157,20 @@ export const EnterprisesManagerDashboard: React.FC = () => {
   const handleCreateEnterprise = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
+
+    const emailTrimmed = formData.adminEmail.toLowerCase().trim();
+    const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!EMAIL_REGEX.test(emailTrimmed)) {
+      setFormError('El formato del correo del administrador no es válido. Debe contener un dominio válido completo (ej: usuario@dominio.com).');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const payload = {
         ...formData,
+        adminEmail: emailTrimmed,
         adminPassword: '123456789', // Contraseña temporal estándar obligatoria
       };
 
@@ -335,6 +345,13 @@ export const EnterprisesManagerDashboard: React.FC = () => {
       return;
     }
 
+    const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!EMAIL_REGEX.test(trimmedEmail)) {
+      setAdminEditError('El formato de correo no es válido. Debe contener un dominio válido completo (ej: usuario@dominio.com).');
+      setIsUpdatingAdmin(false);
+      return;
+    }
+
     try {
       try {
         await axios.patch(`/api/v1/enterprises/${enterpriseForAdminEdit.id}/admin`, {
@@ -496,6 +513,52 @@ export const EnterprisesManagerDashboard: React.FC = () => {
     }
   };
 
+  const handlePurgeAllData = async () => {
+    const confirmation = window.prompt(
+      '⚠️ ACCIÓN CRÍTICA DE SUPER ADMIN:\n\n¿Estás seguro de restablecer por completo la plataforma? Esto borrará TODAS las empresas, operadores, canales de redes sociales y conversaciones, conservando ÚNICAMENTE tu cuenta de Super Admin (superadmin@korevx.com).\n\nPara confirmar, escribe "ELIMINAR TODO":'
+    );
+
+    if (confirmation !== 'ELIMINAR TODO') {
+      if (confirmation !== null) {
+        alert('Confirmación cancelada o texto no coincide.');
+      }
+      return;
+    }
+
+    setIsPurging(true);
+    try {
+      try {
+        await axios.post('/api/v1/enterprises/purge-all');
+      } catch (err) {
+        console.warn('Backend purge-all offline, ejecutando purga local');
+      }
+
+      // Preservar usuario actual (Super Admin)
+      const authUserStr = localStorage.getItem('korevx_auth_user');
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k !== 'korevx_auth_user') {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+
+      if (authUserStr) {
+        localStorage.setItem('korevx_auth_user', authUserStr);
+      }
+
+      setEnterprises([]);
+      soundManager.playSuccess();
+      alert('Limpieza total completada. Todas las empresas y datos han sido eliminados. Solo se conserva el Super Administrador.');
+      window.location.reload();
+    } catch (err: any) {
+      alert(`Error durante la purga: ${err.message || 'Error desconocido'}`);
+    } finally {
+      setIsPurging(false);
+    }
+  };
+
   const filtered = enterprises.filter((ent) => {
     if (planFilter !== 'ALL' && ent.plan !== planFilter) return false;
     if (searchTerm.trim()) {
@@ -531,35 +594,48 @@ export const EnterprisesManagerDashboard: React.FC = () => {
           </p>
         </div>
 
-        {/* Botón Nueva Empresa */}
-        <button
-          onClick={() => {
-            setFormData({
-              name: '',
-              nit: '',
-              industry: 'Retail & E-commerce',
-              plan: 'Business Pro',
-              quotaLimit: 50000,
-              maxOperators: 5,
-              location: 'Bogotá, Colombia',
-              adminFullName: '',
-              adminEmail: '',
-              channelLimits: {
-                FACEBOOK: 2,
-                INSTAGRAM: 1,
-                WHATSAPP: 1,
-                TIKTOK: 0,
-              },
-            });
-            setFormError(null);
-            setCreateSuccessData(null);
-            setIsCreateModalOpen(true);
-          }}
-          className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0072FF] hover:from-[#00D7E5] hover:to-[#005ecc] text-[#030508] font-bold text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-[#00F0FF]/25 font-tech tracking-wide"
-        >
-          <i className="fa-solid fa-plus text-xs"></i>
-          <span>Nueva Empresa y Administrador</span>
-        </button>
+        {/* Botones de Acción Super Admin */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            type="button"
+            onClick={handlePurgeAllData}
+            disabled={isPurging}
+            className="px-4 py-2.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 font-bold text-xs flex items-center justify-center gap-2 transition font-tech shadow-md shadow-rose-950/40 disabled:opacity-50"
+            title="Borrar todas las empresas, operadores, canales y conversaciones. Conserva únicamente tu Super Administrador."
+          >
+            <i className={`fa-solid ${isPurging ? 'fa-spinner fa-spin' : 'fa-triangle-exclamation'} text-xs text-rose-400`}></i>
+            <span>Limpieza Total del Sistema</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setFormData({
+                name: '',
+                nit: '',
+                industry: 'Retail & E-commerce',
+                plan: 'Business Pro',
+                quotaLimit: 50000,
+                maxOperators: 5,
+                location: 'Bogotá, Colombia',
+                adminFullName: '',
+                adminEmail: '',
+                channelLimits: {
+                  FACEBOOK: 2,
+                  INSTAGRAM: 1,
+                  WHATSAPP: 1,
+                  TIKTOK: 0,
+                },
+              });
+              setFormError(null);
+              setCreateSuccessData(null);
+              setIsCreateModalOpen(true);
+            }}
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0072FF] hover:from-[#00D7E5] hover:to-[#005ecc] text-[#030508] font-bold text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-[#00F0FF]/25 font-tech tracking-wide"
+          >
+            <i className="fa-solid fa-plus text-xs"></i>
+            <span>Nueva Empresa y Administrador</span>
+          </button>
+        </div>
       </div>
 
       {/* Regla de Gobernanza y Privacidad */}

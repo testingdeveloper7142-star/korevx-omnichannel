@@ -21,56 +21,8 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private readonly logger = new Logger(EventsGateway.name);
 
-  private sharedChannels: any[] = [
-    {
-      id: 'chan-ig',
-      workspaceId: 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc',
-      platform: 'INSTAGRAM',
-      accountName: 'KorevX Oficial',
-      accountHandle: '@korevx_tech',
-      isActive: true,
-      connectedAt: new Date().toISOString(),
-    },
-    {
-      id: 'chan-fb',
-      workspaceId: 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc',
-      platform: 'FACEBOOK',
-      accountName: 'KorevX Fanpage',
-      accountHandle: 'KorevX Soluciones',
-      isActive: true,
-      connectedAt: new Date().toISOString(),
-    },
-    {
-      id: 'chan-tt',
-      workspaceId: 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc',
-      platform: 'TIKTOK',
-      accountName: 'KorevX TikTok',
-      accountHandle: '@korevx_official',
-      isActive: true,
-      connectedAt: new Date().toISOString(),
-    },
-  ];
-
-  private sharedTemplates: any[] = [
-    {
-      id: 'tmpl-1',
-      shortcut: '/saludo',
-      title: 'Saludo Oficial KorevX',
-      content: '¡Hola! Gracias por comunicarte con KorevX. ¿Cómo podemos ayudarte hoy con tus redes sociales?',
-    },
-    {
-      id: 'tmpl-2',
-      shortcut: '/precios',
-      title: 'Información de Planes',
-      content: 'Nuestros planes omnicanal incluyen integración completa de Instagram, Facebook y TikTok con soporte 24/7.',
-    },
-    {
-      id: 'tmpl-3',
-      shortcut: '/demo',
-      title: 'Agendamiento de Demo',
-      content: 'Con gusto te agendamos una demostración en vivo de nuestra plataforma omnicanal. ¿Qué horario te queda mejor?',
-    },
-  ];
+  private sharedChannels: any[] = [];
+  private sharedTemplates: any[] = [];
 
   handleConnection(client: Socket) {
     this.logger.log(`Cliente conectado a WebSockets: ${client.id}`);

@@ -12,6 +12,7 @@ import { SuperAdminDashboard } from './components/dashboards/SuperAdminDashboard
 import { EnterpriseMetricsDashboard } from './components/dashboards/EnterpriseMetricsDashboard';
 import { EnterprisesManagerDashboard } from './components/dashboards/EnterprisesManagerDashboard';
 import { TicketsView } from './components/tickets/TicketsView';
+import { CompanySettingsDashboard } from './components/dashboards/CompanySettingsDashboard';
 import { Conversation, PlatformType, InteractionType, ConversationStatus, ChannelAccount, AuditLogEntry, AppNotification, QuickResponse } from './types';
 import { api } from './services/api';
 import { socketService } from './services/socket';
@@ -44,80 +45,9 @@ const initialQuickTemplates: QuickResponse[] = [
   },
 ];
 
-const initialAuditLogs: AuditLogEntry[] = [
-  {
-    id: 'log-0',
-    timestamp: new Date(Date.now() - 210 * 60000).toLocaleString(),
-    actorName: 'Laura Morales',
-    actorRole: 'Supervisor',
-    action: 'USER_LOGIN',
-    details: 'Inicio de sesión autenticado de Laura Morales (ADMIN) en plataforma KorevX. IP y dispositivo validados conforme a Ley 1581.',
-    severity: 'INFO',
-  },
-  {
-    id: 'log-1',
-    timestamp: new Date(Date.now() - 180 * 60000).toLocaleString(),
-    actorName: 'Laura Morales',
-    actorRole: 'Supervisor',
-    action: 'AUDIT_MODE_ENABLED',
-    details: 'Modo Auditoría Interna (Ley 1581) ACTIVADO por Laura Morales. Habilitada inspección de chats atendidos para control de calidad.',
-    severity: 'WARNING',
-  },
-  {
-    id: 'log-2',
-    timestamp: new Date(Date.now() - 165 * 60000).toLocaleString(),
-    actorName: 'Laura Morales',
-    actorRole: 'Supervisor',
-    action: 'INSPECT_CONVERSATION',
-    details: 'Inspeccionó la conversación de Andrés Felipe Restrepo (atendida por Laura Morales). Visualizó historial y mensajes.',
-    severity: 'INFO',
-  },
-  {
-    id: 'log-3',
-    timestamp: new Date(Date.now() - 140 * 60000).toLocaleString(),
-    actorName: 'Laura Morales',
-    actorRole: 'Supervisor',
-    action: 'AUDIT_MODE_DISABLED',
-    details: 'Modo Auditoría Interna DESACTIVADO por Laura Morales. Duración de la sesión de inspección: 40 minutos.',
-    severity: 'INFO',
-  },
-  {
-    id: 'log-4',
-    timestamp: new Date(Date.now() - 60 * 60000).toLocaleString(),
-    actorName: 'Laura Morales',
-    actorRole: 'Supervisor',
-    action: 'CHANNEL_CREATED',
-    details: 'Nuevo canal "KorevX Oficial" (INSTAGRAM) conectado con sincronización webhook en tiempo real.',
-    severity: 'SUCCESS',
-  },
-];
+const initialAuditLogs: AuditLogEntry[] = [];
 
-const initialNotifications: AppNotification[] = [
-  {
-    id: 'notif-1',
-    title: 'Modo Auditoría Registrado',
-    message: 'Se activó una sesión de auditoría interna de control conforme a la Ley 1581.',
-    timestamp: 'Hace 3 horas',
-    type: 'audit',
-    read: false,
-  },
-  {
-    id: 'notif-2',
-    title: 'Canal Oficial Conectado',
-    message: 'El canal Instagram Professional está en línea y recibiendo mensajes.',
-    timestamp: 'Hace 1 hora',
-    type: 'channel',
-    read: false,
-  },
-  {
-    id: 'notif-3',
-    title: 'Asignación Automática',
-    message: 'El caso #9841 de Sofía Valenzuela fue asignado a la cola de atención.',
-    timestamp: 'Hace 30 min',
-    type: 'assignment',
-    read: true,
-  },
-];
+const initialNotifications: AppNotification[] = [];
 
 const initialMockConversations: Conversation[] = [];
 
@@ -823,22 +753,25 @@ function AppContent({ user }: { user: AuthUser }) {
 
     // 7. Sincronización en tiempo real de Canales (entre ventanas normales e incógnito)
     socketService.onChannelSync((syncedChannels: ChannelAccount[]) => {
-      if (syncedChannels && syncedChannels.length > 0) {
-        setChannels(syncedChannels);
+      if (Array.isArray(syncedChannels)) {
+        const scoped = syncedChannels.filter((c) => !c.workspaceId || c.workspaceId === workspaceId);
+        setChannels(scoped);
       }
     });
 
     socketService.onChannelCreated((newChan: ChannelAccount) => {
-      setChannels((prev) => {
-        if (prev.some((c) => c.id === newChan.id)) return prev;
-        return [...prev, newChan];
-      });
-      soundManager.playNotification();
-      addNotification(
-        'Nuevo Canal Conectado',
-        `El canal "${newChan.accountName}" (${newChan.platform}) ha sido vinculado y sincronizado.`,
-        'channel'
-      );
+      if (!newChan.workspaceId || newChan.workspaceId === workspaceId) {
+        setChannels((prev) => {
+          if (prev.some((c) => c.id === newChan.id)) return prev;
+          return [...prev, newChan];
+        });
+        soundManager.playNotification();
+        addNotification(
+          'Nuevo Canal Conectado',
+          `El canal "${newChan.accountName}" (${newChan.platform}) ha sido vinculado y sincronizado.`,
+          'channel'
+        );
+      }
     });
 
     // Sincronización continua de respaldo (polling cada 5s filtrado por empresa)
@@ -1405,6 +1338,18 @@ function AppContent({ user }: { user: AuthUser }) {
               quickTemplates={quickTemplates}
               onAddTemplate={handleAddTemplate}
               onDeleteTemplate={handleDeleteTemplate}
+            />
+          )}
+
+          {currentView === 'settings' && user.role === 'ADMIN' && (
+            <CompanySettingsDashboard
+              onUpdateWorkspaceName={(newName) => {
+                // Sincronización reactiva del nombre de la empresa
+              }}
+              onClearCompanyConversations={() => {
+                setConversations([]);
+                setActiveConversation(null);
+              }}
             />
           )}
 

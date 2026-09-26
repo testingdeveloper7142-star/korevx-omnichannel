@@ -1062,49 +1062,14 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
                 </div>
               </div>
 
-              {/* Botones de Acción Rápida para Super Admin */}
-              <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-[#141B29]">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const entName = selectedEnterprise.name;
-                      setSelectedEnterprise(null);
-                      if (onNavigateToSuperAdminSection) {
-                        onNavigateToSuperAdminSection('governance', entName);
-                      }
-                    }}
-                    className="px-3 py-2 rounded-xl bg-[#00F0FF]/10 hover:bg-[#00F0FF]/20 border border-[#00F0FF]/30 text-[#00F0FF] text-xs font-semibold flex items-center gap-1.5 transition font-tech"
-                    title={`Ver eventos de auditoría de ${selectedEnterprise.name}`}
-                  >
-                    <i className="fa-solid fa-clock-rotate-left text-xs"></i>
-                    <span>Ver Auditoría de esta Empresa</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedEnterprise(null);
-                      if (onNavigateToSuperAdminSection) {
-                        onNavigateToSuperAdminSection('supportConsole');
-                      }
-                    }}
-                    className="px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition font-tech"
-                    title="Abrir consola de soporte técnico de Super Admin"
-                  >
-                    <i className="fa-solid fa-headset text-xs"></i>
-                    <span>Abrir Consola Soporte</span>
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setSelectedEnterprise(null)}
-                    className="px-4 py-2 rounded-xl bg-[#0E1524] hover:bg-[#141E33] border border-[#162032] text-xs font-semibold text-white transition font-tech"
-                  >
-                    Cerrar Ficha
-                  </button>
-                </div>
+              {/* Botón Cerrar Ficha Técnica */}
+              <div className="pt-2 flex items-center justify-end border-t border-[#141B29]">
+                <button
+                  onClick={() => setSelectedEnterprise(null)}
+                  className="px-5 py-2.5 rounded-xl bg-[#0E1524] hover:bg-[#141E33] border border-[#162032] text-xs font-semibold text-white transition font-tech"
+                >
+                  Cerrar Ficha
+                </button>
               </div>
             </div>
           </div>,

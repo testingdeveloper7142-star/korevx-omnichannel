@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { AppNotification } from '../types';
 import { soundManager } from '../utils/audio';
 
-export type MainViewType = 'inbox' | 'dashboard' | 'channels' | 'tickets' | 'admin' | 'superadmin' | 'enterprises';
+export type MainViewType = 'inbox' | 'dashboard' | 'channels' | 'tickets' | 'admin' | 'superadmin' | 'enterprises' | 'settings';
 
 interface HeaderProps {
   currentView: MainViewType;
@@ -208,17 +208,31 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Vista Administrador de Empresa */}
             {user?.role === 'ADMIN' && (
-              <button
-                onClick={() => onViewChange('admin')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition ${
-                  currentView === 'admin'
-                    ? 'text-amber-300 bg-[#0E1524] border border-amber-500/40'
-                    : 'text-slate-400 hover:text-amber-300'
-                }`}
-              >
-                <i className="fa-solid fa-user-shield text-xs text-amber-400"></i>
-                <span>Admin</span>
-              </button>
+              <>
+                <button
+                  onClick={() => onViewChange('admin')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition ${
+                    currentView === 'admin'
+                      ? 'text-amber-300 bg-[#0E1524] border border-amber-500/40'
+                      : 'text-slate-400 hover:text-amber-300'
+                  }`}
+                >
+                  <i className="fa-solid fa-user-shield text-xs text-amber-400"></i>
+                  <span>Equipo</span>
+                </button>
+
+                <button
+                  onClick={() => onViewChange('settings')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition ${
+                    currentView === 'settings'
+                      ? 'text-[#00F0FF] bg-[#0E1524] border border-[#00F0FF]/40 shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <i className="fa-solid fa-gear text-xs text-[#00F0FF]"></i>
+                  <span>Configuración</span>
+                </button>
+              </>
             )}
           </>
         )}

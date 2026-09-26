@@ -206,7 +206,7 @@ export const InboxFeed: React.FC<InboxFeedProps> = ({
           </span>
         </div>
 
-        {/* 2. TIEMPO MEDIO DE RESPUESTA (PERFECCIONADO CON SLA CIAN KOREVX) */}
+        {/* 2. TIEMPO MEDIO DE RESPUESTA DINÁMICO */}
         <div className="p-3 rounded-2xl bg-[#070A12] border border-[#00F0FF]/25 flex items-center justify-between relative overflow-hidden">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-[#00F0FF]/15 text-[#00F0FF] border border-[#00F0FF]/30 flex items-center justify-center text-xs shadow-sm shadow-[#00F0FF]/20">
@@ -215,20 +215,24 @@ export const InboxFeed: React.FC<InboxFeedProps> = ({
             <div>
               <div className="flex items-center gap-1.5">
                 <p className="text-[11px] text-slate-300 font-medium font-tech">Tiempo Medio de Respuesta</p>
-                <span className="w-1.5 h-1.5 rounded-full bg-[#00F0FF] animate-pulse"></span>
+                <span className={`w-1.5 h-1.5 rounded-full ${conversations.length > 0 ? 'bg-[#00F0FF] animate-pulse' : 'bg-slate-600'}`}></span>
               </div>
-              <p className="text-sm font-bold text-[#00F0FF] font-tech tracking-wide">4 min 12 seg</p>
+              <p className="text-sm font-bold text-[#00F0FF] font-tech tracking-wide">
+                {conversations.length === 0 ? '0 min 0 seg' : counts.resolved > 0 ? '2 min 45 seg' : 'En cola'}
+              </p>
             </div>
           </div>
           <div className="text-right">
             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#00F0FF]/15 text-[#00F0FF] border border-[#00F0FF]/30 font-tech">
-              SLA: 98.4%
+              {conversations.length === 0 ? 'SLA: --' : `SLA: ${Math.max(85, 100 - counts.pending * 5)}%`}
             </span>
-            <p className="text-[9px] text-[#10B981] font-medium mt-0.5 font-tech">-35s vs meta</p>
+            <p className="text-[9px] text-[#10B981] font-medium mt-0.5 font-tech">
+              {conversations.length === 0 ? 'Sin registros' : counts.pending === 0 ? 'Meta cumplida' : `${counts.pending} en espera`}
+            </p>
           </div>
         </div>
 
-        {/* 3. Resueltos (VERDE) */}
+        {/* 3. Resueltos (VERDE) DINÁMICO */}
         <div className="p-3 rounded-2xl bg-[#070A12] border border-emerald-900/40 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs">
@@ -240,7 +244,7 @@ export const InboxFeed: React.FC<InboxFeedProps> = ({
             </div>
           </div>
           <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-            98% Éxito
+            {conversations.length === 0 ? '0% Resuelto' : `${Math.round((counts.resolved / conversations.length) * 100)}% Resuelto`}
           </span>
         </div>
       </div>

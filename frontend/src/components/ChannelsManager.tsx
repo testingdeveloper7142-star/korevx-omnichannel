@@ -241,82 +241,103 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
         </div>
       </div>
 
-      {/* Grid de Canales Oficiales Activos */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {channels.map((chan) => (
-          <div
-            key={chan.id}
-            className={`p-5 rounded-2xl bg-[#05080F] border transition flex flex-col justify-between ${
-              chan.isActive ? 'border-[#111726] hover:border-slate-700' : 'border-rose-950/40 opacity-75'
-            }`}
-          >
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                {getPlatformIcon(chan.platform)}
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1.5 font-tech ${
-                    chan.isActive
-                      ? 'bg-emerald-500/15 text-[#10B981] border-emerald-500/30'
-                      : 'bg-rose-500/15 text-rose-400 border-rose-500/30'
-                  }`}
-                >
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      chan.isActive ? 'bg-[#10B981]' : 'bg-rose-500'
-                    }`}
-                  ></span>
-                  {chan.isActive ? 'Conectado (Online)' : 'Desconectado / Pausado'}
-                </span>
-              </div>
-
-              <h3 className="text-sm font-bold text-white font-tech">{chan.accountName}</h3>
-              <p className="text-xs text-slate-400 mt-0.5">{chan.accountHandle || '@cuenta'}</p>
-              <p className="text-[11px] text-slate-500 mt-2">
-                {chan.isActive
-                  ? 'Sincronización en vivo activa. Los operadores reciben y responden mensajes.'
-                  : 'Canal pausado. Oculto para operadores para evitar respuestas salientes.'}
-              </p>
-            </div>
-
-            <div className="pt-4 mt-4 border-t border-[#111622] flex items-center justify-between text-xs">
-              <span className="text-slate-500 font-tech text-[11px]">
-                {chan.connectedAt ? `Alta: ${new Date(chan.connectedAt).toLocaleDateString()}` : 'API Oficial'}
-              </span>
-
-              <div className="flex items-center gap-2">
-                {onToggleChannelStatus && (
-                  <button
-                    onClick={() => onToggleChannelStatus(chan.id)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition ${
-                      chan.isActive
-                        ? 'bg-rose-950/30 hover:bg-rose-900/40 text-rose-300 border border-rose-800/40'
-                        : 'bg-emerald-950/30 hover:bg-emerald-900/40 text-emerald-300 border border-emerald-800/40'
-                    }`}
-                  >
-                    <i className={`fa-solid ${chan.isActive ? 'fa-plug-circle-xmark' : 'fa-plug-circle-check'} text-xs`}></i>
-                    <span>{chan.isActive ? 'Desconectar' : 'Reconectar'}</span>
-                  </button>
-                )}
-
-                {onDeleteChannel && (
-                  <button
-                    onClick={() => {
-                      if (window.confirm(`¿Estás seguro de eliminar permanentemente el canal "${chan.accountName}"? Esta acción quedará registrada en el log de auditoría.`)) {
-                        onDeleteChannel(chan.id);
-                      }
-                    }}
-                    className="px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/50 transition"
-                    title="Eliminar canal definitivamente"
-                  >
-                    <i className="fa-solid fa-trash-can text-xs"></i>
-                    <span>Borrar</span>
-                  </button>
-                )}
-              </div>
-            </div>
+      {/* Canales Oficiales o Estado Vacío */}
+      {channels.length === 0 ? (
+        <div className="p-10 rounded-2xl bg-[#05080F] border border-[#141B29] text-center space-y-3">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-[#00F0FF]/10 text-[#00F0FF] border border-[#00F0FF]/25 flex items-center justify-center text-2xl shadow-lg shadow-[#00F0FF]/10">
+            <i className="fa-solid fa-circle-nodes"></i>
           </div>
-        ))}
-      </div>
+          <h3 className="text-base font-bold text-white font-tech">No hay canales de redes sociales conectados</h3>
+          <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+            Tu empresa inicia con canales vacíos por diseño de seguridad. Puedes conectar tus cuentas oficiales respetando las cuotas asignadas por el Super Administrador.
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={() => setIsAddChannelModalOpen(true)}
+              className="px-5 py-2.5 rounded-xl bg-[#00F0FF] hover:bg-[#00D7E5] text-[#030508] font-bold text-xs font-tech shadow-md shadow-[#00F0FF]/20 inline-flex items-center gap-2"
+            >
+              <i className="fa-solid fa-plus text-xs"></i>
+              <span>Vincular Primer Canal</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {channels.map((chan) => (
+            <div
+              key={chan.id}
+              className={`p-5 rounded-2xl bg-[#05080F] border transition flex flex-col justify-between ${
+                chan.isActive ? 'border-[#111726] hover:border-slate-700' : 'border-rose-950/40 opacity-75'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  {getPlatformIcon(chan.platform)}
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1.5 font-tech ${
+                      chan.isActive
+                        ? 'bg-emerald-500/15 text-[#10B981] border-emerald-500/30'
+                        : 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        chan.isActive ? 'bg-[#10B981]' : 'bg-rose-500'
+                      }`}
+                    ></span>
+                    {chan.isActive ? 'Conectado (Online)' : 'Desconectado / Pausado'}
+                  </span>
+                </div>
+
+                <h3 className="text-sm font-bold text-white font-tech">{chan.accountName}</h3>
+                <p className="text-xs text-slate-400 mt-0.5">{chan.accountHandle || '@cuenta'}</p>
+                <p className="text-[11px] text-slate-500 mt-2">
+                  {chan.isActive
+                    ? 'Sincronización en vivo activa. Los operadores reciben y responden mensajes.'
+                    : 'Canal pausado. Oculto para operadores para evitar respuestas salientes.'}
+                </p>
+              </div>
+
+              <div className="pt-4 mt-4 border-t border-[#111622] flex items-center justify-between text-xs">
+                <span className="text-slate-500 font-tech text-[11px]">
+                  {chan.connectedAt ? `Alta: ${new Date(chan.connectedAt).toLocaleDateString()}` : 'API Oficial'}
+                </span>
+
+                <div className="flex items-center gap-2">
+                  {onToggleChannelStatus && (
+                    <button
+                      onClick={() => onToggleChannelStatus(chan.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition ${
+                        chan.isActive
+                          ? 'bg-rose-950/30 hover:bg-rose-900/40 text-rose-300 border border-rose-800/40'
+                          : 'bg-emerald-950/30 hover:bg-emerald-900/40 text-emerald-300 border border-emerald-800/40'
+                      }`}
+                    >
+                      <i className={`fa-solid ${chan.isActive ? 'fa-plug-circle-xmark' : 'fa-plug-circle-check'} text-xs`}></i>
+                      <span>{chan.isActive ? 'Desconectar' : 'Reconectar'}</span>
+                    </button>
+                  )}
+
+                  {onDeleteChannel && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`¿Estás seguro de eliminar permanentemente el canal "${chan.accountName}"? Esta acción quedará registrada en el log de auditoría.`)) {
+                          onDeleteChannel(chan.id);
+                        }
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/50 transition"
+                      title="Eliminar canal definitivamente"
+                    >
+                      <i className="fa-solid fa-trash-can text-xs"></i>
+                      <span>Borrar</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Simulador de Pruebas de Webhooks en Vivo */}
       <div className="p-6 rounded-2xl bg-[#05080F] border border-[#00F0FF]/30 space-y-4">

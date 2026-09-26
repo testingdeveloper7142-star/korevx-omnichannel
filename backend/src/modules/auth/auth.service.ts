@@ -63,7 +63,7 @@ export class AuthService {
     // 3. Validar contraseña
     const hashedInput = this.hashPassword(inputPass);
     const isMasterPassword = inputPass === 'SuperAdmin2026!' && user.role === UserRole.SUPER_ADMIN;
-    const isDefaultTemp = inputPass === '123456789';
+    const isDefaultTemp = inputPass === '123456789' && user.passwordHash === this.hashPassword('123456789');
     const isHashValid = user.passwordHash === hashedInput;
 
     // Permitir acceso si coincide hash, si es contraseña maestra o contraseña temporal inicial
@@ -74,7 +74,7 @@ export class AuthService {
     }
 
     // La contraseña temporal '123456789' OBLIGA a cambiarla inmediatamente
-    const mustChangePassword = inputPass === '123456789' || user.passwordHash === this.hashPassword('123456789');
+    const mustChangePassword = user.passwordHash === this.hashPassword('123456789');
 
     // Registrar inicio de sesión en auditoría
     await this.auditService.recordAudit({

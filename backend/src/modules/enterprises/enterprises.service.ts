@@ -55,6 +55,11 @@ export class EnterprisesService {
 
     const emailClean = dto.adminEmail.toLowerCase().trim();
 
+    const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!EMAIL_REGEX.test(emailClean)) {
+      throw new BadRequestException('El formato del correo del administrador no es válido. Debe contener un dominio válido (ej. usuario@dominio.com).');
+    }
+
     // Verificar si ya existe un usuario con ese correo
     const existingUser = await this.prisma.user.findUnique({
       where: { email: emailClean },
@@ -405,6 +410,11 @@ export class EnterprisesService {
     const emailClean = adminEmail ? adminEmail.toLowerCase().trim() : admin.email;
     const nameClean = adminFullName ? adminFullName.trim() : admin.fullName;
 
+    const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (adminEmail && !EMAIL_REGEX.test(emailClean)) {
+      throw new BadRequestException('El formato del correo del administrador no es válido. Debe contener un dominio válido (ej. usuario@dominio.com).');
+    }
+
     // Si cambia de correo, verificar que no esté ocupado
     if (emailClean !== admin.email) {
       const existing = await this.prisma.user.findUnique({ where: { email: emailClean } });
@@ -480,6 +490,115 @@ export class EnterprisesService {
       workspaceId,
       maxOperators,
       message: `Límite de operadores para ${workspace.name} actualizado a ${maxOperators}`,
+    };
+  }
+
+  /**
+   * Actualiza la configuración propia de la empresa (nombre, logo, NIT, industria, etc.)
+   */
+  async updateEnterpriseSettings(
+    workspaceId: string,
+    settings: {
+      name?: string;
+      nit?: string;
+      industry?: string;
+      location?: string;
+      logoUrl?: string;
+      contactPhone?: string;
+      contactEmail?: string;
+      welcomeMessage?: string;
+      allowExternalAudit?: boolean;
+      allowSupportConsole?: boolean;
+    },
+    requesterUserId?: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { id: workspaceId },
+    });
+
+    if (!workspace) {
+      throw new BadRequestException('Empresa no encontrada');
+    }
+
+    if (settings.name && settings.name.trim() !== workspace.name) {
+      await this.prisma.workspace.update({
+        where: { id: workspaceId },
+        data: { name: settings.name.trim() },
+      });
+    }
+
+    await this.auditService.recordAudit({
+      workspaceId,
+      userId: requesterUserId,
+      action: AuditAction.UPDATE,
+      resource: AuditResource.SETTINGS,
+      resourceId: workspaceId,
+      description: `Configuración de perfil de empresa actualizada para "${settings.name || workspace.name}".`,
+      ipAddress: ipAddress || '127.0.0.1',
+      userAgent: userAgent || 'KorevX Omnichannel Client',
+      newState: settings,
+    });
+
+    return {
+      success: true,
+      workspaceId,
+      settings,
+      message: 'Configuración de empresa actualizada exitosamente',
+    };
+  }
+
+  /**
+   * Elimina todas las empresas creadas, conversaciones, operadores y canales,
+   * manteniendo ÚNICAMENTE el Super Administrador y el Workspace central.
+   */
+  async purgeAllEnterprises(
+    requesterUserId?: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
+    // Buscar super admin
+    const superAdminUser = await this.prisma.user.findFirst({
+      where: { role: UserRole.SUPER_ADMIN },
+    });
+
+    // Eliminar mensajes, conversaciones y canales de forma segura
+    await this.prisma.message.deleteMany({});
+    await this.prisma.conversation.deleteMany({});
+    await this.prisma.channelAccount.deleteMany({});
+
+    // Eliminar usuarios excepto SUPER_ADMIN
+    await this.prisma.user.deleteMany({
+      where: {
+        role: { not: UserRole.SUPER_ADMIN },
+      },
+    });
+
+    // Eliminar workspaces secundarios
+    const globalWorkspace = await this.prisma.workspace.findFirst({
+      where: { slug: 'korevx-global' },
+    });
+
+    if (globalWorkspace) {
+      await this.prisma.workspace.deleteMany({
+        where: { id: { not: globalWorkspace.id } },
+      });
+    } else {
+      const allWs = await this.prisma.workspace.findMany();
+      if (allWs.length > 1) {
+        const keepId = superAdminUser?.workspaceId || allWs[0].id;
+        await this.prisma.workspace.deleteMany({
+          where: { id: { not: keepId } },
+        });
+      }
+    }
+
+    this.logger.log('Purga total de empresas completada. Solo super admin conservado.');
+
+    return {
+      success: true,
+      message: 'Reinicio total completado exitosamente. Todas las empresas y datos de prueba han sido eliminados.',
     };
   }
 }
