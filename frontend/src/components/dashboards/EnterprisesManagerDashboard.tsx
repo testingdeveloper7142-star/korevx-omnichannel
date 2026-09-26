@@ -127,6 +127,9 @@ export const EnterprisesManagerDashboard: React.FC = () => {
         });
 
         setEnterprises(mapped);
+        try {
+          localStorage.setItem('korevx_custom_enterprises', JSON.stringify(mapped));
+        } catch {}
       }
     } catch (err) {
       console.warn('Backend listEnterprises offline, usando localStorage');

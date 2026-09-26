@@ -223,37 +223,49 @@ export class EnterprisesService {
       const admin = ws.users.find((u) => u.role === UserRole.ADMIN) || ws.users[0];
       const channelsList = Array.from(new Set(ws.channels.map((c) => c.platform)));
 
-      // Extraer límites de canales configurados en AuditLog
+      // Extraer metadatos persistidos en el log de creación
+      let industry = ws.id === 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc' ? 'Software & Telecomunicaciones' : 'Comercio & Servicios';
+      let plan: 'Enterprise' | 'Business Pro' | 'Starter' = ws.id === 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc' ? 'Enterprise' : (ws.users.length > 5 ? 'Enterprise' : 'Business Pro');
+      let quotaLimit = 50000;
+      let location = 'Bogotá, Colombia';
       let channelLimits: ChannelLimits = { FACEBOOK: 2, INSTAGRAM: 1, WHATSAPP: 1, TIKTOK: 0 };
+
       for (const log of ws.auditLogs) {
         const state = log.newState as any;
-        if (state && state.channelLimits) {
-          channelLimits = { ...channelLimits, ...state.channelLimits };
+        if (state) {
+          if (state.industry) industry = state.industry;
+          if (state.plan) plan = state.plan;
+          if (state.quotaLimit) quotaLimit = Number(state.quotaLimit) || 50000;
+          if (state.location) location = state.location;
+          if (state.channelLimits) channelLimits = { ...channelLimits, ...state.channelLimits };
           break;
         }
       }
+
+      const totalRequests = ws._count.conversations * 12 + ws._count.auditLogs;
+      const estimatedStorageMb = Math.round((ws._count.conversations * 0.8 + ws._count.auditLogs * 0.05 + ws._count.channels * 1.5) * 10) / 10;
 
       return {
         id: ws.id,
         name: ws.name,
         slug: ws.slug,
-        industry: 'Comercio & Servicios',
-        plan: ws.users.length > 5 ? 'Enterprise' : 'Business Pro',
+        industry,
+        plan,
         activeChannels: channelsList,
         channelLimits,
         operatorCount: ws.users.length || 1,
-        monthlyApiRequests: ws._count.conversations * 14 + 1250,
-        quotaLimit: 50000,
-        storageMb: Math.max(ws._count.conversations * 2 + 120, 50),
-        slaPercent: 99.9,
+        monthlyApiRequests: totalRequests,
+        quotaLimit,
+        storageMb: estimatedStorageMb,
+        slaPercent: 100,
         lastActive: 'Activo',
-        location: 'Colombia',
+        location,
         techLead: admin ? admin.fullName : 'Admin Asignado',
         adminId: admin ? admin.id : null,
         adminEmail: admin ? admin.email : 'admin@korevx.com',
         channelBreakdown: channelsList.map((ch) => ({
           channel: ch,
-          percent: Math.round(100 / channelsList.length),
+          percent: channelsList.length > 0 ? Math.round(100 / channelsList.length) : 0,
         })),
         status: 'ACTIVE',
         createdAt: ws.createdAt,

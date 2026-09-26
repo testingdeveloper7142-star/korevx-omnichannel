@@ -1224,8 +1224,13 @@ function AppContent({ user }: { user: AuthUser }) {
     if (user.role === 'AGENT' && currentView !== 'inbox' && currentView !== 'tickets') {
       setCurrentView('inbox');
     }
-    // 2. Super Admin: Solo accede a Gobernanza Total y Métricas de Empresas (NUNCA a chats, canales ni admin de empresas)
-    if (user.role === 'SUPER_ADMIN' && currentView !== 'superadmin' && currentView !== 'dashboard') {
+    // 2. Super Admin: Solo accede a Gobernanza Total, Empresas & Admins, y Métricas Corporativas (NUNCA a chats, canales ni admin privado)
+    if (
+      user.role === 'SUPER_ADMIN' &&
+      currentView !== 'superadmin' &&
+      currentView !== 'dashboard' &&
+      currentView !== 'enterprises'
+    ) {
       setCurrentView('superadmin');
     }
   }, [user.role, currentView]);
