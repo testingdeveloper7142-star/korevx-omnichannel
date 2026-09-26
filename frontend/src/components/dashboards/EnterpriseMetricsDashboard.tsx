@@ -97,22 +97,6 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
           });
         }
       }
-      if (entId === 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc') {
-        const savedLegacy = localStorage.getItem('korevx_channels');
-        if (savedLegacy) {
-          const parsedLegacy = JSON.parse(savedLegacy);
-          if (Array.isArray(parsedLegacy) && parsedLegacy.length > 0) {
-            return parsedLegacy.map((ch: any) => {
-              const p = String(ch.platform || '').toUpperCase();
-              if (p === 'INSTAGRAM') return 'Instagram';
-              if (p === 'WHATSAPP') return 'WhatsApp';
-              if (p === 'FACEBOOK') return 'Facebook';
-              if (p === 'TIKTOK') return 'TikTok';
-              return ch.accountName || 'Canal';
-            });
-          }
-        }
-      }
     } catch (e) {}
     return fallbackChannels || [];
   };
@@ -125,13 +109,7 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
         const parsed = JSON.parse(savedAgents);
         if (Array.isArray(parsed)) return parsed.length;
       }
-      if (entId === 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc') {
-        const savedLegacy = localStorage.getItem('korevx_agents');
-        if (savedLegacy) {
-          const parsed = JSON.parse(savedLegacy);
-          if (Array.isArray(parsed)) return parsed.length;
-        }
-      }
+
     } catch (e) {}
     return fallbackCount;
   };
@@ -161,10 +139,10 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
       const saved = localStorage.getItem('korevx_custom_enterprises');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {}
-    return [defaultCentralEnterprise];
+    return [];
   });
 
   // Cargar empresas reales creadas en base de datos
@@ -224,11 +202,27 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
 
     let totalActiveConnections = 0;
     const computed = channelConfigs.map((cfg) => {
-      // Contar cuántas empresas tienen este canal conectado
-      const connectedCount = enterprises.filter((ent) => {
+      let connectedCount = 0;
+      let totalMessagesForPlatform = 0;
+
+      enterprises.forEach((ent) => {
         const active = getEnterpriseActiveChannels(ent.id, ent.activeChannels || []);
-        return active.some((ch) => String(ch).toUpperCase().includes(cfg.platformKey));
-      }).length;
+        if (active.some((ch) => String(ch).toUpperCase().includes(cfg.platformKey))) {
+          connectedCount += 1;
+        }
+
+        try {
+          const convs = localStorage.getItem(`korevx_conversations_${ent.id}`);
+          if (convs) {
+            const parsed = JSON.parse(convs);
+            if (Array.isArray(parsed)) {
+              totalMessagesForPlatform += parsed.filter(
+                (c) => c.channelAccount?.platform?.toUpperCase() === cfg.platformKey
+              ).length;
+            }
+          }
+        } catch {}
+      });
 
       totalActiveConnections += connectedCount;
 
@@ -237,7 +231,7 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
         icon: cfg.icon,
         color: cfg.color,
         enterprisesCount: connectedCount,
-        monthlyEvents: connectedCount > 0 ? (connectedCount * 24).toLocaleString() : '0',
+        monthlyEvents: totalMessagesForPlatform.toLocaleString(),
         rawCount: connectedCount,
         avgLatencyMs: connectedCount > 0 ? 115 : 0,
         providerUptime: 100.0,
@@ -255,7 +249,7 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
   const globalIndustryStats = React.useMemo(() => {
     if (enterprises.length === 0) return [];
 
-    const map: Record<string, { sector: string; count: number; operators: number; requests: number }> = {};
+    const map: Record<string, { sector: string; count: number; operators: number; requests: number; enterpriseNames: string[] }> = {};
     let totalReqs = 0;
 
     enterprises.forEach((ent) => {
@@ -265,15 +259,19 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
       totalReqs += reqs;
 
       if (!map[sec]) {
-        map[sec] = { sector: sec, count: 0, operators: 0, requests: 0 };
+        map[sec] = { sector: sec, count: 0, operators: 0, requests: 0, enterpriseNames: [] };
       }
       map[sec].count += 1;
       map[sec].operators += ops;
       map[sec].requests += reqs;
+      if (!map[sec].enterpriseNames.includes(ent.name)) {
+        map[sec].enterpriseNames.push(ent.name);
+      }
     });
 
     return Object.values(map).map((item) => ({
       sector: item.sector,
+      enterpriseNames: item.enterpriseNames,
       enterprisesCount: item.count,
       totalMonthlyRequests: item.requests.toLocaleString(),
       sharePercent: totalReqs > 0 ? Math.round((item.requests / totalReqs) * 100) : Math.round((item.count / enterprises.length) * 100),
@@ -507,7 +505,14 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#111622]">
-                  {globalChannelStats.map((ch) => (
+                  {enterprises.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-6 text-center text-slate-500 font-tech">
+                        No hay empresas registradas aún. Registra una empresa en "Empresas & Admins" para visualizar la telemetría de canales aquí.
+                      </td>
+                    </tr>
+                  ) : (
+                    globalChannelStats.map((ch) => (
                     <tr key={ch.name} className="hover:bg-[#080C14] transition">
                       <td className="py-3.5 font-bold text-white flex items-center gap-2">
                         <i className={`${ch.icon} text-sm`}></i>
@@ -543,7 +548,7 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
                         </span>
                       </td>
                     </tr>
-                  ))}
+                  )))}
                 </tbody>
               </table>
             </div>
@@ -565,7 +570,7 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
               <table className="w-full text-xs text-left">
                 <thead>
                   <tr className="border-b border-[#111622] text-slate-400 font-tech uppercase text-[10px]">
-                    <th className="pb-3">Sector / Industria</th>
+                    <th className="pb-3">Sector / Empresa(s)</th>
                     <th className="pb-3">N° Empresas</th>
                     <th className="pb-3">Peticiones Mensuales</th>
                     <th className="pb-3">% Tráfico Plataforma</th>
@@ -584,7 +589,12 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
                     globalIndustryStats.map((ind) => (
                       <tr key={ind.sector} className="hover:bg-[#080C14] transition">
                         <td className="py-3.5 font-bold text-white font-tech">
-                          {ind.sector}
+                          <div className="flex flex-col">
+                            <span>{ind.sector}</span>
+                            <span className="text-[11px] font-normal text-slate-400 mt-0.5">
+                              Empresas: <span className="text-[#00F0FF]">{ind.enterpriseNames.join(', ')}</span>
+                            </span>
+                          </div>
                         </td>
                         <td className="py-3.5 font-tech text-cyan-400 font-bold">
                           {ind.enterprisesCount} {ind.enterprisesCount === 1 ? 'empresa' : 'empresas'}

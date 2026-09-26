@@ -119,203 +119,11 @@ const initialNotifications: AppNotification[] = [
   },
 ];
 
-const initialMockConversations: Conversation[] = [
-  {
-    id: 'conv-1',
-    workspaceId: 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc',
-    channelAccountId: 'chan-ig',
-    contactId: 'c-1',
-    externalThreadId: 'ig_thread_9841',
-    interactionType: 'DIRECT_MESSAGE',
-    status: 'PENDING',
-    unreadCount: 1,
-    lastActivityAt: new Date(Date.now() - 4 * 60000).toISOString(),
-    contact: {
-      id: 'c-1',
-      name: 'Sofía Valenzuela',
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    },
-    channelAccount: {
-      id: 'chan-ig',
-      workspaceId: 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc',
-      platform: 'INSTAGRAM',
-      accountName: 'KorevX Oficial',
-      accountHandle: '@korevx_tech',
-      isActive: true,
-      connectedAt: new Date().toISOString(),
-    },
-    messages: [
-      {
-        id: 'm-1',
-        conversationId: 'conv-1',
-        senderType: 'CUSTOMER',
-        content: '¡Hola! Estoy muy interesada en el plan Enterprise de KorevX. ¿Tienen soporte 24/7 y migración asistida?',
-        sentAt: new Date(Date.now() - 4 * 60000).toISOString(),
-      },
-    ],
-  },
-  {
-    id: 'conv-2',
-    workspaceId: 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc',
-    channelAccountId: 'chan-fb',
-    contactId: 'c-2',
-    assignedUserId: 'f2040884-2ab9-425a-96e7-3518a1332fe2',
-    assignedUser: {
-      id: 'f2040884-2ab9-425a-96e7-3518a1332fe2',
-      fullName: 'Laura Morales',
-    },
-    externalThreadId: 'fb_post_882',
-    interactionType: 'POST_COMMENT',
-    postId: 'post-fb-99',
-    postTitle: 'Lanzamiento Nueva Plataforma KorevX Omnicanal 2026',
-    status: 'ASSIGNED',
-    unreadCount: 1,
-    lastActivityAt: new Date(Date.now() - 12 * 60000).toISOString(),
-    contact: {
-      id: 'c-2',
-      name: 'Andrés Felipe Restrepo',
-      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-    },
-    channelAccount: {
-      id: 'chan-fb',
-      workspaceId: 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc',
-      platform: 'FACEBOOK',
-      accountName: 'KorevX Fanpage',
-      accountHandle: 'KorevX Soluciones',
-      isActive: true,
-      connectedAt: new Date().toISOString(),
-    },
-    messages: [
-      {
-        id: 'm-2',
-        conversationId: 'conv-2',
-        senderType: 'CUSTOMER',
-        content: '¿El precio incluye las conexiones ilimitadas de TikTok e Instagram?',
-        sentAt: new Date(Date.now() - 12 * 60000).toISOString(),
-      },
-    ],
-  },
-  {
-    id: 'conv-3',
-    workspaceId: 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc',
-    channelAccountId: 'chan-tt',
-    contactId: 'c-3',
-    assignedUserId: '8b83a65e-ecd2-4e4b-a023-37db5aa25275',
-    assignedUser: {
-      id: '8b83a65e-ecd2-4e4b-a023-37db5aa25275',
-      fullName: 'Carlos Agente',
-    },
-    externalThreadId: 'tt_vid_334',
-    interactionType: 'POST_COMMENT',
-    postId: 'vid-tiktok-44',
-    postTitle: 'Demo en vivo: Atención al cliente en menos de 5 segundos',
-    status: 'ASSIGNED',
-    unreadCount: 0,
-    lastActivityAt: new Date(Date.now() - 25 * 60000).toISOString(),
-    contact: {
-      id: 'c-3',
-      name: 'Camila Torres',
-      avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-    },
-    channelAccount: {
-      id: 'chan-tt',
-      workspaceId: 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc',
-      platform: 'TIKTOK',
-      accountName: 'KorevX TikTok',
-      accountHandle: '@korevx_official',
-      isActive: true,
-      connectedAt: new Date().toISOString(),
-    },
-    messages: [
-      {
-        id: 'm-3',
-        conversationId: 'conv-3',
-        senderType: 'CUSTOMER',
-        content: 'Increíble video, ¿tienen demo para Colombia?',
-        sentAt: new Date(Date.now() - 28 * 60000).toISOString(),
-      },
-    ],
-  },
-  {
-    id: 'conv-4',
-    workspaceId: 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc',
-    channelAccountId: 'chan-ig',
-    contactId: 'c-4',
-    externalThreadId: 'ig_thread_7721',
-    interactionType: 'DIRECT_MESSAGE',
-    status: 'PENDING',
-    unreadCount: 1,
-    lastActivityAt: new Date(Date.now() - 50 * 60000).toISOString(),
-    contact: {
-      id: 'c-4',
-      name: 'Mariana Gómez',
-      avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
-    },
-    channelAccount: {
-      id: 'chan-ig',
-      workspaceId: 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc',
-      platform: 'INSTAGRAM',
-      accountName: 'KorevX Oficial',
-      accountHandle: '@korevx_tech',
-      isActive: true,
-      connectedAt: new Date().toISOString(),
-    },
-    messages: [
-      {
-        id: 'm-4',
-        conversationId: 'conv-4',
-        senderType: 'CUSTOMER',
-        content: 'Hola, ¿cómo puedo vincular mi catálogo de productos con el bot de atención?',
-        sentAt: new Date(Date.now() - 50 * 60000).toISOString(),
-      },
-    ],
-  },
-];
+const initialMockConversations: Conversation[] = [];
 
 const initialChannels: ChannelAccount[] = [];
 
-const initialAgents: Agent[] = [
-  {
-    id: '8b83a65e-ecd2-4e4b-a023-37db5aa25275',
-    name: 'Carlos Agente',
-    email: 'carlos@korevx.com',
-    role: 'Operador',
-    isOnline: true,
-    assignedCount: 1,
-    avgResponseTime: '1m 20s',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'usr-3',
-    name: 'Mateo Gómez',
-    email: 'mateo@korevx.com',
-    role: 'Operador',
-    isOnline: true,
-    assignedCount: 0,
-    avgResponseTime: '2m 10s',
-    avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'usr-4',
-    name: 'Sofía Agente',
-    email: 'sofia@korevx.com',
-    role: 'Operador',
-    isOnline: false,
-    assignedCount: 0,
-    avgResponseTime: '1m 55s',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'f2040884-2ab9-425a-96e7-3518a1332fe2',
-    name: 'Laura Morales',
-    email: 'laura@korevx.com',
-    role: 'Supervisor',
-    isOnline: true,
-    assignedCount: 1,
-    avgResponseTime: '3m 40s',
-    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=100&auto=format&fit=crop&q=80',
-  },
-];
+const initialAgents: Agent[] = [];
 
 function AppContent({ user }: { user: AuthUser }) {
   const { logout, changePassword } = useAuth();
@@ -345,17 +153,7 @@ function AppContent({ user }: { user: AuthUser }) {
         if (Array.isArray(parsed)) return parsed;
       } catch (e) {}
     }
-    if (isDefaultWorkspace) {
-      const savedLegacy = localStorage.getItem('korevx_conversations');
-      if (savedLegacy) {
-        try {
-          const parsed = JSON.parse(savedLegacy);
-          if (Array.isArray(parsed)) return parsed;
-        } catch (e) {}
-      }
-      return initialMockConversations;
-    }
-    return []; // Empresa nueva inicia con bandeja limpia y privada
+    return [];
   });
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
 
@@ -377,28 +175,7 @@ function AppContent({ user }: { user: AuthUser }) {
         if (Array.isArray(parsed)) return parsed;
       } catch (e) {}
     }
-    if (isDefaultWorkspace) {
-      const savedLegacy = localStorage.getItem('korevx_agents');
-      if (savedLegacy) {
-        try {
-          const parsed = JSON.parse(savedLegacy);
-          if (Array.isArray(parsed)) return parsed;
-        } catch (e) {}
-      }
-      return initialAgents;
-    }
-    return [
-      {
-        id: user.id,
-        name: user.fullName,
-        email: user.email,
-        role: 'Supervisor',
-        isOnline: true,
-        assignedCount: 0,
-        avgResponseTime: '0s',
-        avatar: user.fullName ? user.fullName.slice(0, 2).toUpperCase() : 'AD',
-      },
-    ];
+    return [];
   });
 
   useEffect(() => {
@@ -419,17 +196,7 @@ function AppContent({ user }: { user: AuthUser }) {
         if (Array.isArray(parsed)) return parsed;
       } catch (e) {}
     }
-    if (isDefaultWorkspace) {
-      const savedLegacy = localStorage.getItem('korevx_channels');
-      if (savedLegacy) {
-        try {
-          const parsed = JSON.parse(savedLegacy);
-          if (Array.isArray(parsed)) return parsed;
-        } catch (e) {}
-      }
-      return initialChannels;
-    }
-    return []; // Empresa nueva inicia sin canales hasta que conecte los suyos
+    return [];
   });
 
   useEffect(() => {
@@ -471,6 +238,23 @@ function AppContent({ user }: { user: AuthUser }) {
       }
     } catch {}
     return { FACEBOOK: 2, INSTAGRAM: 1, WHATSAPP: 1, TIKTOK: 0 };
+  })();
+
+  // Límite máximo de operadores asignado a este workspace por Super Admin
+  const currentEnterpriseMaxOperators = (() => {
+    try {
+      const saved = localStorage.getItem(`korevx_max_operators_${workspaceId}`);
+      if (saved) return Number(saved) || 5;
+    } catch {}
+    try {
+      const allEnts = localStorage.getItem('korevx_custom_enterprises');
+      if (allEnts) {
+        const list = JSON.parse(allEnts);
+        const match = list.find((e: any) => e.id === workspaceId);
+        if (match && typeof match.maxOperators === 'number') return match.maxOperators;
+      }
+    } catch {}
+    return 5;
   })();
 
   // Registro de Auditoría Integral (Audit Log Ley 1581) con persistencia
@@ -1597,7 +1381,7 @@ function AppContent({ user }: { user: AuthUser }) {
                 }}
               />
             ) : (
-              <MetricsDashboard channels={channels} />
+              <MetricsDashboard channels={channels} conversations={conversations} agents={agents} />
             )
           )}
 
@@ -1614,15 +1398,10 @@ function AppContent({ user }: { user: AuthUser }) {
 
           {currentView === 'admin' && user.role === 'ADMIN' && (
             <AdminDashboard
-              isSupportModeActive={isSupportModeActive}
-              onToggleSupportMode={toggleSupportMode}
-              isAuditModeActive={isAuditModeActive}
-              onToggleAuditMode={toggleAuditMode}
+              maxOperators={currentEnterpriseMaxOperators}
               agents={agents}
               onAddAgent={handleAddAgent}
               onToggleAgentStatus={handleToggleAgentStatus}
-              auditLogs={auditLogs}
-              onClearAuditLogs={() => setAuditLogs([])}
               quickTemplates={quickTemplates}
               onAddTemplate={handleAddTemplate}
               onDeleteTemplate={handleDeleteTemplate}

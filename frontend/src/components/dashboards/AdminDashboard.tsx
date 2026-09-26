@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
-import { InternalTicket, TicketStatus, AuditLogEntry } from '../../types';
+import { InternalTicket, TicketStatus } from '../../types';
 import { CreateTicketModal } from '../tickets/CreateTicketModal';
 
 export interface Agent {
@@ -19,91 +19,30 @@ export interface Agent {
 import { QuickResponse } from '../../types';
 
 interface AdminDashboardProps {
-  isSupportModeActive?: boolean;
-  onToggleSupportMode?: (enabled: boolean) => void;
-  isAuditModeActive?: boolean;
-  onToggleAuditMode?: (enabled: boolean) => void;
+  maxOperators?: number;
   agents?: Agent[];
   onAddAgent?: (newAgent: Agent) => void;
   onToggleAgentStatus?: (agentId: string) => void;
-  auditLogs?: AuditLogEntry[];
-  onClearAuditLogs?: () => void;
   quickTemplates?: QuickResponse[];
   onAddTemplate?: (newTemplate: QuickResponse) => void;
   onDeleteTemplate?: (templateId: string) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
-  isSupportModeActive = false,
-  onToggleSupportMode,
-  isAuditModeActive = false,
-  onToggleAuditMode,
+  maxOperators = 5,
   agents: externalAgents,
   onAddAgent,
   onToggleAgentStatus: externalToggleStatus,
-  auditLogs = [],
-  onClearAuditLogs,
   quickTemplates: externalTemplates,
   onAddTemplate,
   onDeleteTemplate,
 }) => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'supervision' | 'tickets' | 'audit'>('supervision');
-  const [auditFilter, setAuditFilter] = useState<string>('ALL');
-  const [auditSearch, setAuditSearch] = useState<string>('');
-  const [auditPage, setAuditPage] = useState<number>(1);
-  const [auditPageSize, setAuditPageSize] = useState<number>(8);
+  const [activeTab, setActiveTab] = useState<'supervision' | 'tickets'>('supervision');
 
-  const filteredAuditLogs = (Array.isArray(auditLogs) ? auditLogs : []).filter((log) => {
-    if (auditFilter !== 'ALL' && log.action !== auditFilter) return false;
-    if (auditSearch.trim()) {
-      const q = auditSearch.toLowerCase();
-      const matchActor = log.actorName.toLowerCase().includes(q);
-      const matchDetails = log.details.toLowerCase().includes(q);
-      const matchAction = log.action.toLowerCase().includes(q);
-      if (!matchActor && !matchDetails && !matchAction) return false;
-    }
-    return true;
-  });
-
-  const totalAuditPages = Math.max(1, Math.ceil(filteredAuditLogs.length / auditPageSize));
-  const currentAuditPage = Math.min(Math.max(1, auditPage), totalAuditPages);
-  const startAuditIdx = (currentAuditPage - 1) * auditPageSize;
-  const paginatedAuditLogs = filteredAuditLogs.slice(startAuditIdx, startAuditIdx + auditPageSize);
 
   // Estado local o sincronizado de agentes
-  const [localAgents, setLocalAgents] = useState<Agent[]>([
-    {
-      id: '8b83a65e-ecd2-4e4b-a023-37db5aa25275',
-      name: 'Carlos Agente',
-      email: 'carlos@korevx.com',
-      role: 'Agente Senior',
-      isOnline: true,
-      assignedCount: 3,
-      avgResponseTime: '3m 50s',
-      avatar: 'CA',
-    },
-    {
-      id: 'f2040884-2ab9-425a-96e7-3518a1332fe2',
-      name: 'Laura Morales',
-      email: 'supervisor@korevx.com',
-      role: 'Supervisora de Operaciones',
-      isOnline: true,
-      assignedCount: 2,
-      avgResponseTime: '2m 15s',
-      avatar: 'LM',
-    },
-    {
-      id: 'usr-3',
-      name: 'Mateo Gómez',
-      email: 'mateo@korevx.com',
-      role: 'Agente Ventas',
-      isOnline: false,
-      assignedCount: 0,
-      avgResponseTime: '5m 02s',
-      avatar: 'MG',
-    },
-  ]);
+  const [localAgents, setLocalAgents] = useState<Agent[]>([]);
 
   const agents = externalAgents || localAgents;
 
@@ -118,6 +57,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleCreateAgent = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAgentName.trim()) return;
+
+    if (agents.length >= maxOperators) {
+      alert(`Has alcanzado el límite máximo de ${maxOperators} operadores permitidos para tu empresa. Contacta al Super Admin para ampliar tu cuota.`);
+      return;
+    }
 
     const initials = newAgentName
       .trim()
@@ -196,10 +140,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newContent, setNewContent] = useState('');
   const [isAddingTemplate, setIsAddingTemplate] = useState(false);
 
-  // Reiniciar paginación al cambiar filtros de auditoría
-  useEffect(() => {
-    setAuditPage(1);
-  }, [auditFilter, auditSearch, auditPageSize]);
+
 
   const [tickets, setTickets] = useState<InternalTicket[]>([]);
   const [isLoadingTickets, setIsLoadingTickets] = useState(false);
@@ -335,93 +276,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             )}
           </button>
 
-          <button
-            onClick={() => setActiveTab('audit')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition ${
-              activeTab === 'audit'
-                ? 'bg-[#0E1524] text-amber-300 border border-amber-500/40 shadow-sm'
-                : 'text-slate-400 hover:text-amber-300'
-            }`}
-          >
-            <i className="fa-solid fa-clipboard-list text-amber-400 text-xs"></i>
-            <span>Registro de Auditoría (Ley 1581)</span>
-            {auditLogs.length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30">
-                {auditLogs.length}
-              </span>
-            )}
-          </button>
+
         </div>
       </div>
 
-      {/* Controles de Gobernanza y Privacidad (Nivel 2) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Switch 1: Modo Auditoría Interna */}
-        <div className="p-4 rounded-2xl bg-[#05080F] border border-amber-500/30 flex items-start justify-between gap-3 shadow-sm">
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 flex-shrink-0 mt-0.5">
-              <i className="fa-solid fa-eye text-sm"></i>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h4 className="text-xs font-bold text-white">Modo Auditoría Interna / Verificación</h4>
-                <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full border ${isAuditModeActive ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
-                  {isAuditModeActive ? 'ACTIVO' : 'RESTRINGIDO'}
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                Permite al Administrador inspeccionar conversaciones atendidas por sus operadores para control de calidad. Registra cada acceso en el AuditLog.
-              </p>
-            </div>
-          </div>
 
-          <button
-            onClick={() => onToggleAuditMode && onToggleAuditMode(!isAuditModeActive)}
-            className={`w-12 h-6 rounded-full transition-colors relative flex-shrink-0 mt-1 p-0.5 ${
-              isAuditModeActive ? 'bg-amber-500' : 'bg-slate-800'
-            }`}
-          >
-            <div
-              className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                isAuditModeActive ? 'translate-x-6' : 'translate-x-0'
-              }`}
-            />
-          </button>
-        </div>
-
-        {/* Switch 2: Modo Soporte Técnico para Super Admin */}
-        <div className="p-4 rounded-2xl bg-[#05080F] border border-purple-500/30 flex items-start justify-between gap-3 shadow-sm">
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 flex-shrink-0 mt-0.5">
-              <i className="fa-solid fa-server text-sm"></i>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h4 className="text-xs font-bold text-white">Modo Soporte Técnico (KorevX Core)</h4>
-                <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full border ${isSupportModeActive ? 'bg-purple-500/20 text-purple-300 border-purple-500/40' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
-                  {isSupportModeActive ? 'AUTORIZADO' : 'BLOQUEADO'}
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                Por Ley 1581 y Secreto Comercial, el Super Admin no puede leer tus chats salvo que actives este interruptor para resolver una incidencia técnica.
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => onToggleSupportMode && onToggleSupportMode(!isSupportModeActive)}
-            className={`w-12 h-6 rounded-full transition-colors relative flex-shrink-0 mt-1 p-0.5 ${
-              isSupportModeActive ? 'bg-purple-500' : 'bg-slate-800'
-            }`}
-          >
-            <div
-              className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                isSupportModeActive ? 'translate-x-6' : 'translate-x-0'
-              }`}
-            />
-          </button>
-        </div>
-      </div>
 
       {activeTab === 'supervision' ? (
         <>
@@ -565,19 +424,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <i className="fa-solid fa-users text-[#00F0FF] text-xs"></i>
-                <h3 className="text-sm font-bold text-white font-tech">Equipo de Atención</h3>
+                <h3 className="text-sm font-bold text-white font-tech">
+                  Equipo de Operadores ({agents.length} / {maxOperators})
+                </h3>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-slate-400">
-                  {agents.filter((a) => a.isOnline).length} de {agents.length} activos
+                  {agents.filter((a) => a.isOnline).length} de {agents.length} en línea
                 </span>
-                <button
-                  onClick={() => setIsAddAgentModalOpen(true)}
-                  className="px-3 py-1.5 rounded-xl bg-[#00F0FF] hover:bg-[#00D7E5] text-[#030508] font-bold text-xs flex items-center gap-1.5 font-tech shadow-md shadow-[#00F0FF]/20 transition"
-                >
-                  <i className="fa-solid fa-user-plus text-xs"></i>
-                  <span>Agregar Operador</span>
-                </button>
+                {agents.length >= maxOperators ? (
+                  <span className="px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-tech font-bold flex items-center gap-1.5" title="Límite máximo de operadores alcanzado">
+                    <i className="fa-solid fa-lock text-xs"></i>
+                    <span>Límite Alcanzado ({maxOperators} máx)</span>
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => setIsAddAgentModalOpen(true)}
+                    className="px-3 py-1.5 rounded-xl bg-[#00F0FF] hover:bg-[#00D7E5] text-[#030508] font-bold text-xs flex items-center gap-1.5 font-tech shadow-md shadow-[#00F0FF]/20 transition"
+                  >
+                    <i className="fa-solid fa-user-plus text-xs"></i>
+                    <span>Agregar Operador</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -594,7 +462,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#111622]">
-                  {agents.map((agent) => (
+                  {agents.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-500 font-tech">
+                        No hay operadores creados aún. Haz clic en "Agregar Operador" para dar de alta al equipo (hasta ${maxOperators} permitidos).
+                      </td>
+                    </tr>
+                  ) : (
+                    agents.map((agent) => (
                     <tr key={agent.id} className="hover:bg-[#080C14] transition">
                       <td className="py-3.5 pl-2">
                         <div className="flex items-center gap-2.5">
@@ -659,7 +534,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </button>
                       </td>
                     </tr>
-                  ))}
+                  )))}
                 </tbody>
               </table>
             </div>
@@ -971,368 +846,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           )}
         </div>
-      ) : (
-        /* Pestaña de Registro de Auditoría Integral (Ley 1581 de 2012 / SIC) */
-        <div className="space-y-6 fade-in">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-[#05080F] border border-amber-500/30">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center justify-center text-xs">
-                  <i className="fa-solid fa-shield-halved"></i>
-                </span>
-                <h3 className="text-sm font-bold text-white font-tech">
-                  Registro Oficial de Auditoría y Trazabilidad (Ley 1581 de 2012)
-                </h3>
-              </div>
-              <p className="text-xs text-slate-400 mt-1">
-                Trazabilidad inmutable de accesos y modificaciones: quién activó el Modo Auditoría, a qué hora/fecha, cuándo lo desactivó, qué conversaciones inspeccionó, canales agregados o borrados y asignaciones.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(auditLogs, null, 2));
-                  const downloadAnchor = document.createElement('a');
-                  downloadAnchor.setAttribute("href", dataStr);
-                  downloadAnchor.setAttribute("download", `korevx_audit_log_${Date.now()}.json`);
-                  document.body.appendChild(downloadAnchor);
-                  downloadAnchor.click();
-                  downloadAnchor.remove();
-                }}
-                className="px-3.5 py-2 rounded-xl bg-[#080C14] hover:bg-[#0E1524] border border-[#00F0FF]/40 text-[#00F0FF] font-tech text-xs font-semibold flex items-center gap-1.5 transition"
-              >
-                <i className="fa-solid fa-download text-xs"></i>
-                <span>Exportar Log (.JSON)</span>
-              </button>
-
-              {onClearAuditLogs && (
-                <button
-                  onClick={() => {
-                    if (window.confirm('¿Reiniciar los registros de auditoría locales? Esta acción solo debe realizarse para propósitos de prueba.')) {
-                      onClearAuditLogs();
-                    }
-                  }}
-                  className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-rose-400 transition"
-                  title="Limpiar logs locales de prueba"
-                >
-                  <i className="fa-solid fa-trash-can text-xs"></i>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Estadísticas Rápidas de Trazabilidad */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <div className="p-3.5 rounded-2xl bg-[#05080F] border border-[#141B29]">
-              <p className="text-[10px] text-slate-400 uppercase font-tech font-bold">Total Eventos Registrados</p>
-              <p className="text-xl font-bold text-white font-tech mt-1">{auditLogs.length}</p>
-              <span className="text-[9px] text-[#10B981] font-tech">✓ Registro Activo</span>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-[#05080F] border border-[#141B29]">
-              <p className="text-[10px] text-slate-400 uppercase font-tech font-bold">Sesiones Auditoría</p>
-              <p className="text-xl font-bold text-amber-300 font-tech mt-1">
-                {auditLogs.filter((l) => l.action === 'AUDIT_MODE_ENABLED' || l.action === 'AUDIT_MODE_DISABLED').length}
-              </p>
-              <span className="text-[9px] text-amber-400 font-tech">Control de Calidad</span>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-[#05080F] border border-[#141B29]">
-              <p className="text-[10px] text-slate-400 uppercase font-tech font-bold">Inspecciones de Chat</p>
-              <p className="text-xl font-bold text-[#00F0FF] font-tech mt-1">
-                {auditLogs.filter((l) => l.action === 'INSPECT_CONVERSATION').length}
-              </p>
-              <span className="text-[9px] text-cyan-400 font-tech">Historial auditado</span>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-[#05080F] border border-[#141B29]">
-              <p className="text-[10px] text-slate-400 uppercase font-tech font-bold">Acciones en Canales</p>
-              <p className="text-xl font-bold text-purple-300 font-tech mt-1">
-                {auditLogs.filter((l) => l.action.includes('CHANNEL')).length}
-              </p>
-              <span className="text-[9px] text-purple-400 font-tech">Altas / Bajas / Pausas</span>
-            </div>
-          </div>
-
-          {/* Filtros de Auditoría */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-[#05080F] border border-[#111622] text-xs">
-            <div className="flex items-center gap-2">
-              <i className="fa-solid fa-filter text-amber-400 text-xs"></i>
-              <span className="text-slate-400 font-tech font-semibold">Tipo de Evento:</span>
-              <select
-                value={auditFilter}
-                onChange={(e) => setAuditFilter(e.target.value)}
-                className="bg-[#080C14] text-amber-300 border border-[#141B29] rounded-lg px-2.5 py-1 font-bold focus:outline-none cursor-pointer text-xs"
-              >
-                <option value="ALL">Todos los Eventos ({auditLogs.length})</option>
-                <option value="USER_LOGIN">Inicio de Sesión</option>
-                <option value="USER_LOGOUT">Cierre de Sesión</option>
-                <option value="AUDIT_MODE_ENABLED">Activación de Auditoría</option>
-                <option value="AUDIT_MODE_DISABLED">Desactivación de Auditoría</option>
-                <option value="INSPECT_CONVERSATION">Inspección de Chat</option>
-                <option value="AUDIT_REQUESTED">Solicitud de Auditoría</option>
-                <option value="AUDIT_ACCEPTED">Auditoría Autorizada</option>
-                <option value="AUDIT_REJECTED">Auditoría Rechazada</option>
-                <option value="CONVERSATION_RESOLVED">Caso Resuelto</option>
-                <option value="CONVERSATION_SHARED">Chat Compartido con Admin</option>
-                <option value="CHANNEL_CREATED">Canal Conectado</option>
-                <option value="CHANNEL_TOGGLED">Canal Pausado / Reanudado</option>
-                <option value="CHANNEL_DELETED">Canal Eliminado</option>
-                <option value="CONVERSATION_ASSIGNED">Asignación de Conversación</option>
-              </select>
-            </div>
-
-            <div className="relative flex-1 sm:max-w-xs">
-              <i className="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-xs"></i>
-              <input
-                type="text"
-                value={auditSearch}
-                onChange={(e) => setAuditSearch(e.target.value)}
-                placeholder="Buscar por actor, cliente o detalle..."
-                className="w-full pl-8 pr-3 py-1.5 bg-[#080C14] border border-[#141B29] rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/60"
-              />
-            </div>
-          </div>
-
-          {/* Tabla de Eventos de Auditoría */}
-          <div className="overflow-x-auto rounded-2xl border border-[#111726] bg-[#05080F]">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-[#141B29] text-slate-400 font-tech uppercase text-[10px] bg-[#080C14]">
-                  <th className="py-3 px-4">Fecha y Hora</th>
-                  <th className="py-3 px-4">Actor / Usuario</th>
-                  <th className="py-3 px-4">Tipo de Evento</th>
-                  <th className="py-3 px-4">Detalle / "Qué Vio" o Modificó</th>
-                  <th className="py-3 px-4 text-center">Nivel</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#101624]">
-                {filteredAuditLogs.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-10 text-center text-slate-500 text-xs">
-                      <i className="fa-solid fa-clipboard-check text-2xl mb-2 block text-slate-600"></i>
-                      No hay registros de auditoría que coincidan con el filtro seleccionado.
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedAuditLogs.map((log) => {
-                      const getActionBadge = (action: string) => {
-                        switch (action) {
-                          case 'AUDIT_MODE_ENABLED':
-                            return (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 font-tech flex items-center gap-1.5 w-fit">
-                                <i className="fa-solid fa-eye text-[9px]"></i>
-                                Auditoría Activada
-                              </span>
-                            );
-                          case 'AUDIT_MODE_DISABLED':
-                            return (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700 font-tech flex items-center gap-1.5 w-fit">
-                                <i className="fa-solid fa-eye-slash text-[9px]"></i>
-                                Auditoría Desactivada
-                              </span>
-                            );
-                          case 'INSPECT_CONVERSATION':
-                            return (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-[#00F0FF] border border-cyan-500/40 font-tech flex items-center gap-1.5 w-fit">
-                                <i className="fa-solid fa-magnifying-glass text-[9px]"></i>
-                                Inspección Chat
-                              </span>
-                            );
-                          case 'CHANNEL_DELETED':
-                            return (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 font-tech flex items-center gap-1.5 w-fit">
-                                <i className="fa-solid fa-trash-can text-[9px]"></i>
-                                Canal Eliminado
-                              </span>
-                            );
-                          case 'CHANNEL_CREATED':
-                            return (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-tech flex items-center gap-1.5 w-fit">
-                                <i className="fa-solid fa-plus text-[9px]"></i>
-                                Canal Creado
-                              </span>
-                            );
-                          case 'CHANNEL_TOGGLED':
-                            return (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40 font-tech flex items-center gap-1.5 w-fit">
-                                <i className="fa-solid fa-toggle-on text-[9px]"></i>
-                                Estado Canal
-                              </span>
-                            );
-                          case 'CONVERSATION_ASSIGNED':
-                            return (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/40 font-tech flex items-center gap-1.5 w-fit">
-                                <i className="fa-solid fa-user-tag text-[9px]"></i>
-                                Asignación
-                              </span>
-                            );
-                          case 'AUDIT_REQUESTED':
-                            return (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 font-tech flex items-center gap-1.5 w-fit">
-                                <i className="fa-solid fa-paper-plane text-[9px]"></i>
-                                Solicitud Enviada
-                              </span>
-                            );
-                          case 'AUDIT_ACCEPTED':
-                            return (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-tech flex items-center gap-1.5 w-fit">
-                                <i className="fa-solid fa-check-double text-[9px]"></i>
-                                Auditoría Autorizada
-                              </span>
-                            );
-                          case 'AUDIT_REJECTED':
-                            return (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 font-tech flex items-center gap-1.5 w-fit">
-                                <i className="fa-solid fa-ban text-[9px]"></i>
-                                Auditoría Rechazada
-                              </span>
-                            );
-                          case 'USER_LOGIN':
-                            return (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-tech flex items-center gap-1.5 w-fit">
-                                <i className="fa-solid fa-right-to-bracket text-[9px]"></i>
-                                Inicio de Sesión
-                              </span>
-                            );
-                          case 'USER_LOGOUT':
-                            return (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700 font-tech flex items-center gap-1.5 w-fit">
-                                <i className="fa-solid fa-right-from-bracket text-[9px]"></i>
-                                Cierre de Sesión
-                              </span>
-                            );
-                          case 'CONVERSATION_RESOLVED':
-                            return (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/40 font-tech flex items-center gap-1.5 w-fit">
-                                <i className="fa-solid fa-check-double text-[9px]"></i>
-                                Caso Resuelto
-                              </span>
-                            );
-                          case 'CONVERSATION_SHARED':
-                            return (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/40 font-tech flex items-center gap-1.5 w-fit">
-                                <i className="fa-solid fa-share-nodes text-[9px]"></i>
-                                Chat Compartido
-                              </span>
-                            );
-                          default:
-                            return <span className="text-[10px] font-tech text-slate-400">{action}</span>;
-                        }
-                      };
-
-                      return (
-                        <tr key={log.id} className="hover:bg-[#090E1A] transition">
-                          <td className="py-3 px-4 font-tech text-slate-300 whitespace-nowrap text-[11px]">
-                            {log.timestamp}
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-2">
-                              <span className="w-6 h-6 rounded-md bg-[#0E1524] text-white font-bold text-[10px] flex items-center justify-center font-tech border border-[#162032]">
-                                {log.actorName.slice(0, 2).toUpperCase()}
-                              </span>
-                              <div>
-                                <p className="font-bold text-white text-xs">{log.actorName}</p>
-                                <p className="text-[10px] text-slate-400 font-tech uppercase">{log.actorRole}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            {getActionBadge(log.action)}
-                          </td>
-                          <td className="py-3 px-4 text-slate-300 text-xs leading-relaxed max-w-md">
-                            {log.details}
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-[9px] font-bold font-tech uppercase ${
-                                log.severity === 'ALERT'
-                                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                                  : log.severity === 'WARNING'
-                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                  : log.severity === 'SUCCESS'
-                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                  : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                              }`}
-                            >
-                              {log.severity}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })
-                )}
-              </tbody>
-            </table>
-
-            {/* Paginación Interactiva de Auditoría */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 border-t border-[#141B29] bg-[#080C14] text-xs">
-              <div className="flex items-center gap-2 text-slate-400 font-tech">
-                <span>Mostrar</span>
-                <select
-                  value={auditPageSize}
-                  onChange={(e) => {
-                    setAuditPageSize(Number(e.target.value));
-                    setAuditPage(1);
-                  }}
-                  className="bg-[#05080F] text-amber-300 border border-[#141B29] rounded-lg px-2.5 py-1 font-bold text-xs focus:outline-none cursor-pointer"
-                >
-                  <option value={5}>5 por pág.</option>
-                  <option value={8}>8 por pág.</option>
-                  <option value={10}>10 por pág.</option>
-                  <option value={15}>15 por pág.</option>
-                  <option value={20}>20 por pág.</option>
-                </select>
-                <span>
-                  (Mostrando {filteredAuditLogs.length > 0 ? startAuditIdx + 1 : 0} -{' '}
-                  {Math.min(startAuditIdx + auditPageSize, filteredAuditLogs.length)} de{' '}
-                  {filteredAuditLogs.length} eventos)
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1.5 font-tech">
-                <button
-                  type="button"
-                  onClick={() => setAuditPage((p) => Math.max(1, p - 1))}
-                  disabled={currentAuditPage <= 1}
-                  className="px-2.5 py-1 rounded-lg bg-[#05080F] hover:bg-[#0E1524] disabled:opacity-30 disabled:hover:bg-[#05080F] border border-[#141B29] text-slate-300 hover:text-white transition flex items-center gap-1"
-                >
-                  <i className="fa-solid fa-chevron-left text-[10px]"></i>
-                  <span className="hidden sm:inline">Anterior</span>
-                </button>
-
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: totalAuditPages }, (_, i) => i + 1).map((pageNum) => (
-                    <button
-                      key={pageNum}
-                      type="button"
-                      onClick={() => setAuditPage(pageNum)}
-                      className={`w-7 h-7 rounded-lg text-xs font-bold transition flex items-center justify-center ${
-                        pageNum === currentAuditPage
-                          ? 'bg-amber-500 text-[#030508] shadow-sm shadow-amber-500/30'
-                          : 'bg-[#05080F] hover:bg-[#0E1524] text-slate-400 hover:text-white border border-[#141B29]'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  ))}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setAuditPage((p) => Math.min(totalAuditPages, p + 1))}
-                  disabled={currentAuditPage >= totalAuditPages}
-                  className="px-2.5 py-1 rounded-lg bg-[#05080F] hover:bg-[#0E1524] disabled:opacity-30 disabled:hover:bg-[#05080F] border border-[#141B29] text-slate-300 hover:text-white transition flex items-center gap-1"
-                >
-                  <span className="hidden sm:inline">Siguiente</span>
-                  <i className="fa-solid fa-chevron-right text-[10px]"></i>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      ) : null}
 
       {/* Modal para que el Admin cree tickets a Super Admin */}
       <CreateTicketModal

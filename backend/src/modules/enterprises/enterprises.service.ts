@@ -227,15 +227,19 @@ export class EnterprisesService {
       let industry = ws.id === 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc' ? 'Software & Telecomunicaciones' : 'Comercio & Servicios';
       let plan: 'Enterprise' | 'Business Pro' | 'Starter' = ws.id === 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc' ? 'Enterprise' : (ws.users.length > 5 ? 'Enterprise' : 'Business Pro');
       let quotaLimit = 50000;
+      let maxOperators = 5;
+      let nit = 'En trámite';
       let location = 'Bogotá, Colombia';
       let channelLimits: ChannelLimits = { FACEBOOK: 2, INSTAGRAM: 1, WHATSAPP: 1, TIKTOK: 0 };
 
       for (const log of ws.auditLogs) {
         const state = log.newState as any;
         if (state) {
+          if (state.nit) nit = state.nit;
           if (state.industry) industry = state.industry;
           if (state.plan) plan = state.plan;
           if (state.quotaLimit) quotaLimit = Number(state.quotaLimit) || 50000;
+          if (state.maxOperators) maxOperators = Number(state.maxOperators) || 5;
           if (state.location) location = state.location;
           if (state.channelLimits) channelLimits = { ...channelLimits, ...state.channelLimits };
           break;
@@ -249,10 +253,12 @@ export class EnterprisesService {
         id: ws.id,
         name: ws.name,
         slug: ws.slug,
+        nit,
         industry,
         plan,
         activeChannels: channelsList,
         channelLimits,
+        maxOperators,
         operatorCount: ws.users.length || 1,
         monthlyApiRequests: totalRequests,
         quotaLimit,
@@ -369,5 +375,111 @@ export class EnterprisesService {
     this.logger.log(`Empresa ${workspace.name} (${workspaceId}) eliminada con éxito por Super Admin`);
 
     return { success: true, message: `Empresa "${workspace.name}" eliminada permanentemente` };
+  }
+
+  /**
+   * Actualiza el nombre y correo del administrador de una empresa
+   */
+  async updateEnterpriseAdmin(
+    workspaceId: string,
+    adminFullName?: string,
+    adminEmail?: string,
+    requesterUserId?: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      include: { users: true },
+    });
+
+    if (!workspace) {
+      throw new BadRequestException('Empresa no encontrada');
+    }
+
+    const admin = workspace.users.find((u) => u.role === UserRole.ADMIN) || workspace.users[0];
+    if (!admin) {
+      throw new BadRequestException('Administrador no encontrado para esta empresa');
+    }
+
+    const emailClean = adminEmail ? adminEmail.toLowerCase().trim() : admin.email;
+    const nameClean = adminFullName ? adminFullName.trim() : admin.fullName;
+
+    // Si cambia de correo, verificar que no esté ocupado
+    if (emailClean !== admin.email) {
+      const existing = await this.prisma.user.findUnique({ where: { email: emailClean } });
+      if (existing && existing.id !== admin.id) {
+        throw new ConflictException(`El correo ${emailClean} ya está en uso por otra cuenta`);
+      }
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: admin.id },
+      data: {
+        fullName: nameClean,
+        email: emailClean,
+      },
+    });
+
+    await this.auditService.recordAudit({
+      workspaceId,
+      userId: requesterUserId,
+      action: AuditAction.UPDATE,
+      resource: AuditResource.USER,
+      resourceId: admin.id,
+      description: `Administrador de "${workspace.name}" actualizado a "${nameClean}" (${emailClean}) por Super Admin.`,
+      ipAddress: ipAddress || '127.0.0.1',
+      userAgent: userAgent || 'KorevX SuperAdmin WebApp',
+      newState: { adminFullName: nameClean, adminEmail: emailClean },
+    });
+
+    return {
+      success: true,
+      workspaceId,
+      admin: {
+        id: updatedUser.id,
+        fullName: updatedUser.fullName,
+        email: updatedUser.email,
+      },
+      message: `Administrador de ${workspace.name} actualizado exitosamente`,
+    };
+  }
+
+  /**
+   * Actualiza el límite máximo de operadores permitidos para una empresa
+   */
+  async updateMaxOperators(
+    workspaceId: string,
+    maxOperators: number,
+    requesterUserId?: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { id: workspaceId },
+    });
+
+    if (!workspace) {
+      throw new BadRequestException('Empresa no encontrada');
+    }
+
+    await this.auditService.recordAudit({
+      workspaceId,
+      userId: requesterUserId,
+      action: AuditAction.UPDATE,
+      resource: AuditResource.SETTINGS,
+      resourceId: workspaceId,
+      description: `Límite máximo de operadores para "${workspace.name}" ajustado a ${maxOperators} por Super Admin.`,
+      ipAddress: ipAddress || '127.0.0.1',
+      userAgent: userAgent || 'KorevX SuperAdmin WebApp',
+      newState: { maxOperators },
+    });
+
+    return {
+      success: true,
+      workspaceId,
+      maxOperators,
+      message: `Límite de operadores para ${workspace.name} actualizado a ${maxOperators}`,
+    };
   }
 }

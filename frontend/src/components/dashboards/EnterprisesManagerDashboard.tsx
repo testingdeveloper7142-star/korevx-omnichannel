@@ -19,6 +19,7 @@ export interface EnterpriseItem {
   activeChannels: string[];
   channelLimits?: ChannelLimits;
   operatorCount: number;
+  maxOperators?: number;
   monthlyApiRequests: number;
   quotaLimit: number;
   storageMb: number;
@@ -73,7 +74,7 @@ export const EnterprisesManagerDashboard: React.FC = () => {
     } as ChannelLimits,
   });
 
-  // Modal para editar límites de redes sociales
+  // Modal para editar límites de redes sociales y operadores
   const [enterpriseForLimits, setEnterpriseForLimits] = useState<EnterpriseItem | null>(null);
   const [editingLimits, setEditingLimits] = useState<ChannelLimits>({
     FACEBOOK: 2,
@@ -81,7 +82,15 @@ export const EnterprisesManagerDashboard: React.FC = () => {
     WHATSAPP: 1,
     TIKTOK: 0,
   });
+  const [editingMaxOperators, setEditingMaxOperators] = useState<number>(5);
   const [isUpdatingLimits, setIsUpdatingLimits] = useState(false);
+
+  // Modal y estado para editar Administrador (Nombre y Correo)
+  const [enterpriseForAdminEdit, setEnterpriseForAdminEdit] = useState<EnterpriseItem | null>(null);
+  const [editingAdminName, setEditingAdminName] = useState('');
+  const [editingAdminEmail, setEditingAdminEmail] = useState('');
+  const [isUpdatingAdmin, setIsUpdatingAdmin] = useState(false);
+  const [adminEditError, setAdminEditError] = useState<string | null>(null);
 
   // Modal y estado para eliminar empresa
   const [enterpriseToDelete, setEnterpriseToDelete] = useState<EnterpriseItem | null>(null);
@@ -115,11 +124,13 @@ export const EnterprisesManagerDashboard: React.FC = () => {
           } catch {}
 
           const effectiveLimits = item.channelLimits || savedLimits;
+          const effectiveMaxOps = item.maxOperators || Number(localStorage.getItem(`korevx_max_operators_${item.id}`)) || 5;
 
           return {
             ...item,
             activeChannels: Array.isArray(item.activeChannels) ? item.activeChannels : [],
             channelLimits: effectiveLimits,
+            maxOperators: effectiveMaxOps,
             adminId: item.adminId || matchAdmin?.id,
             adminEmail: item.adminEmail || matchAdmin?.email || 'admin@' + (item.slug || 'empresa') + '.com',
             techLead: item.techLead || matchAdmin?.fullName || 'Administrador',
@@ -161,6 +172,7 @@ export const EnterprisesManagerDashboard: React.FC = () => {
         newEnt = {
           ...res.data.enterprise,
           channelLimits: formData.channelLimits,
+          maxOperators: formData.maxOperators,
         };
         newAdmin = res.data.administrator;
       } catch (backendErr) {
@@ -176,6 +188,7 @@ export const EnterprisesManagerDashboard: React.FC = () => {
           activeChannels: [], // Canales estrictamente vacíos
           channelLimits: formData.channelLimits,
           operatorCount: 1,
+          maxOperators: formData.maxOperators,
           monthlyApiRequests: 0,
           quotaLimit: formData.quotaLimit,
           storageMb: 10,
@@ -205,6 +218,9 @@ export const EnterprisesManagerDashboard: React.FC = () => {
 
       // Guardar límites de canales para este workspace
       localStorage.setItem(`korevx_channel_limits_${newEnt.id}`, JSON.stringify(formData.channelLimits));
+
+      // Guardar límite de operadores para este workspace
+      localStorage.setItem(`korevx_max_operators_${newEnt.id}`, String(formData.maxOperators));
 
       // Guardar en localStorage de empresas creadas
       const savedEnts = localStorage.getItem('korevx_custom_enterprises');
@@ -255,14 +271,23 @@ export const EnterprisesManagerDashboard: React.FC = () => {
         console.warn('Backend updateChannelLimits offline, guardando localmente');
       }
 
+      try {
+        await axios.patch(`/api/v1/enterprises/${enterpriseForLimits.id}/operator-limit`, {
+          maxOperators: editingMaxOperators,
+        });
+      } catch (err) {
+        console.warn('Backend updateMaxOperators offline, guardando localmente');
+      }
+
       // Guardar límites localmente para este workspace
       localStorage.setItem(`korevx_channel_limits_${enterpriseForLimits.id}`, JSON.stringify(editingLimits));
+      localStorage.setItem(`korevx_max_operators_${enterpriseForLimits.id}`, String(editingMaxOperators));
 
       // Actualizar estado en vivo
       setEnterprises((prev) =>
         prev.map((e) =>
           e.id === enterpriseForLimits.id
-            ? { ...e, channelLimits: editingLimits }
+            ? { ...e, channelLimits: editingLimits, maxOperators: editingMaxOperators }
             : e
         )
       );
@@ -274,7 +299,7 @@ export const EnterprisesManagerDashboard: React.FC = () => {
           const list = JSON.parse(savedEnts);
           const updated = list.map((e: any) =>
             e.id === enterpriseForLimits.id
-              ? { ...e, channelLimits: editingLimits }
+              ? { ...e, channelLimits: editingLimits, maxOperators: editingMaxOperators }
               : e
           );
           localStorage.setItem('korevx_custom_enterprises', JSON.stringify(updated));
@@ -285,6 +310,100 @@ export const EnterprisesManagerDashboard: React.FC = () => {
       setEnterpriseForLimits(null);
     } finally {
       setIsUpdatingLimits(false);
+    }
+  };
+
+  const handleOpenAdminEdit = (ent: EnterpriseItem) => {
+    setEnterpriseForAdminEdit(ent);
+    setEditingAdminName(ent.techLead || '');
+    setEditingAdminEmail(ent.adminEmail || '');
+    setAdminEditError(null);
+  };
+
+  const handleSaveAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!enterpriseForAdminEdit) return;
+    setIsUpdatingAdmin(true);
+    setAdminEditError(null);
+
+    const trimmedName = editingAdminName.trim();
+    const trimmedEmail = editingAdminEmail.toLowerCase().trim();
+
+    if (!trimmedName || !trimmedEmail) {
+      setAdminEditError('El nombre completo y el correo electrónico son obligatorios.');
+      setIsUpdatingAdmin(false);
+      return;
+    }
+
+    try {
+      try {
+        await axios.patch(`/api/v1/enterprises/${enterpriseForAdminEdit.id}/admin`, {
+          adminFullName: trimmedName,
+          adminEmail: trimmedEmail,
+        });
+      } catch (err: any) {
+        console.warn('Backend updateAdmin offline, aplicando en localStorage');
+        if (err.response?.data?.message) {
+          throw new Error(err.response.data.message);
+        }
+      }
+
+      // Actualizar estado reactivo
+      setEnterprises((prev) =>
+        prev.map((e) =>
+          e.id === enterpriseForAdminEdit.id
+            ? { ...e, techLead: trimmedName, adminEmail: trimmedEmail }
+            : e
+        )
+      );
+
+      // Actualizar en custom_enterprises
+      const savedEnts = localStorage.getItem('korevx_custom_enterprises');
+      if (savedEnts) {
+        try {
+          const list = JSON.parse(savedEnts);
+          const updated = list.map((e: any) =>
+            e.id === enterpriseForAdminEdit.id
+              ? { ...e, techLead: trimmedName, adminEmail: trimmedEmail }
+              : e
+          );
+          localStorage.setItem('korevx_custom_enterprises', JSON.stringify(updated));
+        } catch {}
+      }
+
+      // Actualizar en korevx_registered_admins
+      const savedAdmins = localStorage.getItem('korevx_registered_admins');
+      if (savedAdmins) {
+        try {
+          const list = JSON.parse(savedAdmins);
+          const updated = list.map((a: any) =>
+            a.workspaceId === enterpriseForAdminEdit.id || (enterpriseForAdminEdit.adminId && a.id === enterpriseForAdminEdit.adminId)
+              ? { ...a, fullName: trimmedName, email: trimmedEmail }
+              : a
+          );
+          localStorage.setItem('korevx_registered_admins', JSON.stringify(updated));
+        } catch {}
+      }
+
+      // Notificación de auditoría
+      const savedNotifs = localStorage.getItem('korevx_notifications');
+      const notifs = savedNotifs ? JSON.parse(savedNotifs) : [];
+      notifs.unshift({
+        id: 'notif-' + Date.now(),
+        title: '👤 Administrador Actualizado',
+        message: `Los datos del administrador para "${enterpriseForAdminEdit.name}" fueron actualizados a: ${trimmedName} (${trimmedEmail}) por Super Admin.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        type: 'audit',
+        read: false,
+      });
+      localStorage.setItem('korevx_notifications', JSON.stringify(notifs));
+
+      soundManager.playSuccess();
+      setEnterpriseForAdminEdit(null);
+    } catch (err: any) {
+      setAdminEditError(err.message || 'Error al actualizar los datos del administrador.');
+    } finally {
+      setIsUpdatingAdmin(false);
     }
   };
 
@@ -544,7 +663,17 @@ export const EnterprisesManagerDashboard: React.FC = () => {
                         <i className="fa-solid fa-user-shield text-amber-400"></i>
                         <span>Administrador:</span>
                       </span>
-                      <strong className="text-white font-medium">{ent.techLead}</strong>
+                      <div className="flex items-center gap-2">
+                        <strong className="text-white font-medium">{ent.techLead}</strong>
+                        <button
+                          onClick={() => handleOpenAdminEdit(ent)}
+                          className="px-2 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-tech font-bold flex items-center gap-1 transition"
+                          title="Modificar nombre y correo del administrador"
+                        >
+                          <i className="fa-solid fa-pen-to-square text-[9px]"></i>
+                          <span>Editar</span>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between text-[11px]">
@@ -571,7 +700,7 @@ export const EnterprisesManagerDashboard: React.FC = () => {
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[10px] text-slate-400 font-tech uppercase font-bold flex items-center gap-1.5">
                         <i className="fa-solid fa-sliders text-[#00F0FF]"></i>
-                        <span>Cuotas de Redes Sociales</span>
+                        <span>Cuotas de Redes Sociales & Operadores</span>
                       </span>
                       <button
                         onClick={() => {
@@ -582,6 +711,7 @@ export const EnterprisesManagerDashboard: React.FC = () => {
                             WHATSAPP: limits.WHATSAPP ?? 1,
                             TIKTOK: limits.TIKTOK ?? 0,
                           });
+                          setEditingMaxOperators(ent.maxOperators || 5);
                         }}
                         className="text-[10px] text-[#00F0FF] hover:underline font-tech font-bold flex items-center gap-1"
                       >
@@ -625,10 +755,10 @@ export const EnterprisesManagerDashboard: React.FC = () => {
 
                     <div className="p-2 rounded-xl bg-[#080C14] border border-[#141B29] text-center">
                       <span className="text-[10px] text-slate-400 font-tech uppercase block">
-                        Operadores Creados
+                        Límite de Operadores
                       </span>
                       <span className="text-xs font-bold text-white font-tech">
-                        {ent.operatorCount || 1}
+                        {ent.operatorCount || 1} / {ent.maxOperators || 5}
                       </span>
                     </div>
                   </div>
@@ -750,7 +880,7 @@ export const EnterprisesManagerDashboard: React.FC = () => {
 
                 <div className="flex items-center justify-between p-3 rounded-xl bg-[#080C14] border border-[#141B29]">
                   <div className="flex items-center gap-2.5 text-xs text-white">
-                    <span className="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center">
+                    <span className="w-7 h-7 rounded-lg bg-cyan-500/20 text-[#00F0FF] flex items-center justify-center">
                       <i className="fa-brands fa-tiktok"></i>
                     </span>
                     <span>TikTok Video Comments</span>
@@ -761,6 +891,26 @@ export const EnterprisesManagerDashboard: React.FC = () => {
                     max="20"
                     value={editingLimits.TIKTOK}
                     onChange={(e) => setEditingLimits({ ...editingLimits, TIKTOK: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                    className="w-16 px-2.5 py-1.5 bg-[#05080F] border border-[#1E293B] focus:border-[#00F0FF] rounded-lg text-xs text-white text-center font-bold focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl bg-[#080C14] border border-[#00F0FF]/30">
+                  <div className="flex items-center gap-2.5 text-xs text-white">
+                    <span className="w-7 h-7 rounded-lg bg-[#00F0FF]/20 text-[#00F0FF] flex items-center justify-center">
+                      <i className="fa-solid fa-users"></i>
+                    </span>
+                    <div>
+                      <span className="font-bold block">Límite de Operadores</span>
+                      <span className="text-[10px] text-slate-400">Máximo de agentes que el admin puede crear</span>
+                    </div>
+                  </div>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={editingMaxOperators}
+                    onChange={(e) => setEditingMaxOperators(Math.max(1, parseInt(e.target.value, 10) || 1))}
                     className="w-16 px-2.5 py-1.5 bg-[#05080F] border border-[#1E293B] focus:border-[#00F0FF] rounded-lg text-xs text-white text-center font-bold focus:outline-none"
                   />
                 </div>
@@ -787,6 +937,100 @@ export const EnterprisesManagerDashboard: React.FC = () => {
                       <>
                         <i className="fa-solid fa-check"></i>
                         <span>Guardar Cuotas</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Modal para Editar Administrador (Nombre y Correo) (Portal) */}
+      {enterpriseForAdminEdit &&
+        createPortal(
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+            <div className="bg-[#05080F] border border-amber-500/40 rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl shadow-amber-950/50 space-y-5">
+              <div className="flex items-center justify-between pb-3 border-b border-[#141B29]">
+                <div className="flex items-center gap-3">
+                  <span className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center text-base">
+                    <i className="fa-solid fa-user-pen"></i>
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-bold text-white font-tech">Editar Administrador</h3>
+                    <p className="text-[11px] text-amber-400 font-medium">{enterpriseForAdminEdit.name}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setEnterpriseForAdminEdit(null)}
+                  className="w-7 h-7 rounded-lg bg-[#0E1524] text-slate-400 hover:text-white flex items-center justify-center text-xs"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              {adminEditError && (
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+                  <i className="fa-solid fa-triangle-exclamation text-rose-400"></i>
+                  <span>{adminEditError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSaveAdmin} className="space-y-4 font-tech">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Nombre Completo del Administrador
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editingAdminName}
+                    onChange={(e) => setEditingAdminName(e.target.value)}
+                    placeholder="Ej. Carlos Administrador"
+                    className="w-full px-3 py-2 bg-[#080C14] border border-[#1E293B] focus:border-amber-400 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Correo Electrónico Corporativo
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={editingAdminEmail}
+                    onChange={(e) => setEditingAdminEmail(e.target.value)}
+                    placeholder="admin@empresa.com"
+                    className="w-full px-3 py-2 bg-[#080C14] border border-[#1E293B] focus:border-amber-400 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Este correo se utilizará para iniciar sesión en la empresa correspondiente.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEnterpriseForAdminEdit(null)}
+                    className="px-4 py-2 rounded-xl bg-[#0E1524] text-xs font-semibold text-slate-300 hover:text-white"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isUpdatingAdmin}
+                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20"
+                  >
+                    {isUpdatingAdmin ? (
+                      <>
+                        <i className="fa-solid fa-spinner fa-spin"></i>
+                        <span>Guardando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <i className="fa-solid fa-check"></i>
+                        <span>Guardar Cambios</span>
                       </>
                     )}
                   </button>

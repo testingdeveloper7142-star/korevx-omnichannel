@@ -52,6 +52,47 @@ export class EnterprisesController {
     );
   }
 
+  @Patch(':id/admin')
+  @ApiOperation({ summary: 'Actualizar datos (nombre y correo) del administrador de una empresa' })
+  async updateEnterpriseAdmin(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: { adminFullName?: string; adminEmail?: string; requesterUserId?: string },
+  ) {
+    const rawIp = req.headers['x-forwarded-for'] as string;
+    const ipAddress = rawIp ? rawIp.split(',')[0].trim() : req.socket.remoteAddress || '127.0.0.1';
+    const userAgent = (req.headers['user-agent'] as string) || 'KorevX SuperAdmin WebApp';
+
+    return this.enterprisesService.updateEnterpriseAdmin(
+      id,
+      body.adminFullName,
+      body.adminEmail,
+      body.requesterUserId,
+      ipAddress,
+      userAgent,
+    );
+  }
+
+  @Patch(':id/operator-limit')
+  @ApiOperation({ summary: 'Actualizar límite máximo de operadores permitidos para una empresa' })
+  async updateMaxOperators(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: { maxOperators: number; requesterUserId?: string },
+  ) {
+    const rawIp = req.headers['x-forwarded-for'] as string;
+    const ipAddress = rawIp ? rawIp.split(',')[0].trim() : req.socket.remoteAddress || '127.0.0.1';
+    const userAgent = (req.headers['user-agent'] as string) || 'KorevX SuperAdmin WebApp';
+
+    return this.enterprisesService.updateMaxOperators(
+      id,
+      body.maxOperators,
+      body.requesterUserId,
+      ipAddress,
+      userAgent,
+    );
+  }
+
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar definitivamente una empresa (Workspace) y sus datos por Super Admin' })
   async deleteEnterprise(
