@@ -959,6 +959,17 @@ function AppContent({ user }: { user: AuthUser }) {
     }
   };
 
+  useEffect(() => {
+    const handleSupportUpdated = (e: any) => {
+      if (e.detail) {
+        setSupportModeInfo(e.detail);
+        setIsSupportModeActive(Boolean(e.detail.active));
+      }
+    };
+    window.addEventListener('korevx_support_mode_updated', handleSupportUpdated);
+    return () => window.removeEventListener('korevx_support_mode_updated', handleSupportUpdated);
+  }, []);
+
   const toggleAuditMode = (enabled: boolean) => {
     setIsAuditModeActive(enabled);
     localStorage.setItem('korevx_audit_mode', String(enabled));

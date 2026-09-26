@@ -1056,6 +1056,27 @@ export const EnterprisesManagerDashboard: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Permisos de Ley 1581 (Soporte & Auditoría Externa) */}
+                <div className="flex items-center justify-between text-[10px] font-tech py-1.5 px-2.5 rounded-lg bg-[#05080F] border border-[#141B29] my-2">
+                  <span className="text-slate-400">Ley 1581:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`px-2 py-0.5 rounded border text-[9px] font-bold ${
+                      localStorage.getItem(`korevx_support_mode_${ent.id}`) === 'true'
+                        ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                        : 'bg-slate-800 text-slate-500 border-slate-700'
+                    }`}>
+                      {localStorage.getItem(`korevx_support_mode_${ent.id}`) === 'true' ? '🟢 Soporte Autorizado' : '🔒 Soporte Bloqueado'}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded border text-[9px] font-bold ${
+                      localStorage.getItem(`korevx_allow_external_audit_${ent.id}`) === 'true'
+                        ? 'bg-cyan-500/15 text-[#00F0FF] border-cyan-500/40'
+                        : 'bg-slate-800 text-slate-500 border-slate-700'
+                    }`}>
+                      {localStorage.getItem(`korevx_allow_external_audit_${ent.id}`) === 'true' ? 'Audit. Externa ON' : 'Audit. OFF'}
+                    </span>
+                  </div>
+                </div>
+
                 {/* Acciones de Gobernanza */}
                 <div className="pt-3 border-t border-[#111726] flex items-center justify-between gap-2">
                   <button

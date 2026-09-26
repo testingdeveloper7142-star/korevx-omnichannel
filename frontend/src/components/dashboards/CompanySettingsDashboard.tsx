@@ -203,9 +203,30 @@ export const CompanySettingsDashboard: React.FC<CompanySettingsDashboardProps> =
         }
       }
 
+      // 5. Sincronizar Permisos de Soporte y Auditoría Externa con Super Admin
+      const supportInfo = allowSupportConsole
+        ? {
+            active: true,
+            enterpriseId: workspaceId,
+            enterpriseName: trimmedName,
+            adminName: user?.fullName || 'Administrador',
+            adminEmail: user?.email || '',
+            activatedAt: new Date().toLocaleString(),
+          }
+        : {
+            active: false,
+            enterpriseId: workspaceId,
+            enterpriseName: trimmedName,
+          };
+
+      localStorage.setItem('korevx_support_mode_info', JSON.stringify(supportInfo));
+      localStorage.setItem('korevx_support_mode', String(allowSupportConsole));
+      localStorage.setItem(`korevx_support_mode_${workspaceId}`, String(allowSupportConsole));
+      localStorage.setItem(`korevx_allow_external_audit_${workspaceId}`, String(allowExternalAudit));
+
       window.dispatchEvent(
-        new CustomEvent('korevx_company_profile_updated', {
-          detail: { name: trimmedName, logoUrl: logoUrl.trim() },
+        new CustomEvent('korevx_support_mode_updated', {
+          detail: supportInfo,
         })
       );
 
@@ -495,51 +516,97 @@ export const CompanySettingsDashboard: React.FC<CompanySettingsDashboardProps> =
 
         {/* Bloque 3: Permisos de Supervisión Externa (Gobernanza y Ley 1581) */}
         <div className="p-6 rounded-2xl bg-[#05080F] border border-[#141B29] space-y-4">
-          <div className="flex items-center gap-2.5 pb-3 border-b border-[#111726]">
-            <i className="fa-solid fa-shield-halved text-amber-400 text-sm"></i>
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider font-tech">
-              Permisos de Soporte & Auditoría Externa
-            </h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#111726]">
+            <div className="flex items-center gap-2.5">
+              <i className="fa-solid fa-shield-halved text-amber-400 text-sm"></i>
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider font-tech">
+                Permisos de Soporte & Auditoría Externa
+              </h3>
+            </div>
+            <span className="text-[11px] font-tech text-slate-400">
+              Marco Regulatorio: <strong>Ley 1581 de 2012 (Habeas Data)</strong>
+            </span>
           </div>
 
           <p className="text-xs text-slate-400 leading-relaxed font-tech">
-            Conforme a la Ley 1581 de Protección de Datos, el Super Administrador de la plataforma central KorevX no puede acceder a las métricas privadas ni a los registros de tu empresa a menos que tú lo autorices explícitamente:
+            Por privacidad y secreto comercial, el <strong>Super Administrador central de KorevX</strong> tiene estrictamente bloqueado el acceso a las conversaciones y registros de tu empresa a menos que actives estas autorizaciones explícitas:
           </p>
 
           <div className="space-y-3 pt-1">
-            <label className="flex items-start gap-3 p-3.5 rounded-xl bg-[#080C14] border border-[#141B29] cursor-pointer hover:border-slate-700 transition">
+            <label className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition ${
+              allowExternalAudit ? 'bg-[#08121C] border-[#00F0FF]/40' : 'bg-[#080C14] border-[#141B29] hover:border-slate-700'
+            }`}>
               <input
                 type="checkbox"
                 checked={allowExternalAudit}
                 onChange={(e) => setAllowExternalAudit(e.target.checked)}
-                className="mt-0.5 w-4 h-4 rounded text-[#00F0FF] focus:ring-0 focus:outline-none bg-[#05080F] border-slate-700 cursor-pointer"
+                className="mt-1 w-4 h-4 rounded text-[#00F0FF] focus:ring-0 focus:outline-none bg-[#05080F] border-slate-700 cursor-pointer"
               />
               <div className="flex-1 text-xs">
-                <span className="font-bold text-white font-tech block">
-                  Permitir Inspección de Auditoría Interna por Super Admin
-                </span>
-                <span className="text-slate-400 text-[11px] block mt-0.5">
-                  Habilita al Super Administrador central revisar la trazabilidad inmutable de eventos de control de calidad de tu empresa.
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                  <span className="font-bold text-white font-tech block">
+                    Permitir Inspección de Auditoría Interna por Super Admin
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-tech self-start border ${
+                    allowExternalAudit
+                      ? 'bg-cyan-500/15 text-[#00F0FF] border-[#00F0FF]/40'
+                      : 'bg-slate-800 text-slate-400 border-slate-700'
+                  }`}>
+                    {allowExternalAudit ? '🟢 AUDITORÍA AUTORIZADA' : '🔒 PRIVACIDAD ESTRICTA'}
+                  </span>
+                </div>
+                <span className="text-slate-400 text-[11px] block mt-1">
+                  <strong>¿Qué hace?:</strong> Habilita al Super Administrador central consultar la bitácora inmutable de eventos de control de calidad de tu empresa para verificar trazabilidad técnica o SLA. Si está desmarcado, el Super Admin no puede auditar tus registros.
                 </span>
               </div>
             </label>
 
-            <label className="flex items-start gap-3 p-3.5 rounded-xl bg-[#080C14] border border-[#141B29] cursor-pointer hover:border-slate-700 transition">
+            <label className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition ${
+              allowSupportConsole ? 'bg-amber-950/20 border-amber-500/40' : 'bg-[#080C14] border-[#141B29] hover:border-slate-700'
+            }`}>
               <input
                 type="checkbox"
                 checked={allowSupportConsole}
                 onChange={(e) => setAllowSupportConsole(e.target.checked)}
-                className="mt-0.5 w-4 h-4 rounded text-amber-400 focus:ring-0 focus:outline-none bg-[#05080F] border-slate-700 cursor-pointer"
+                className="mt-1 w-4 h-4 rounded text-amber-400 focus:ring-0 focus:outline-none bg-[#05080F] border-slate-700 cursor-pointer"
               />
               <div className="flex-1 text-xs">
-                <span className="font-bold text-white font-tech block">
-                  Permitir Consola de Soporte Técnico Remoto por Super Admin
-                </span>
-                <span className="text-slate-400 text-[11px] block mt-0.5">
-                  Autoriza temporalmente al equipo central de KorevX a prestar asistencia técnica y resolución de incidentes en tiempo real.
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                  <span className="font-bold text-white font-tech block">
+                    Permitir Consola de Soporte Técnico Remoto por Super Admin
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-tech self-start border ${
+                    allowSupportConsole
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                  }`}>
+                    {allowSupportConsole ? '🟢 SOPORTE REMOTO ACTIVO' : '🔒 ACCESO BLOQUEADO (Ley 1581)'}
+                  </span>
+                </div>
+                <span className="text-slate-400 text-[11px] block mt-1">
+                  <strong>¿Qué hace?:</strong> Autoriza temporalmente al equipo central de KorevX a abrir la "Consola de Diagnóstico & Soporte" para inspeccionar chats y ayudarte a solucionar caídas de webhooks o incidencias en vivo. Si está apagado, el Super Admin tiene el acceso vetado.
                 </span>
               </div>
             </label>
+          </div>
+
+          {/* Tarjeta de Resumen de Estado en Tiempo Real */}
+          <div className={`p-3.5 rounded-xl border text-xs flex items-center gap-3 transition ${
+            allowSupportConsole
+              ? 'bg-amber-500/10 border-amber-500/30 text-amber-200'
+              : 'bg-[#080C14] border-[#141B29] text-slate-400'
+          }`}>
+            <i className={`fa-solid ${allowSupportConsole ? 'fa-triangle-exclamation text-amber-400 text-lg' : 'fa-lock text-slate-500 text-lg'}`}></i>
+            <div className="flex-1">
+              <p className="font-bold font-tech text-white">
+                {allowSupportConsole ? 'Canal de Soporte Remoto Autorizado' : 'Aislamiento Estricto y Secreto Comercial Activo'}
+              </p>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                {allowSupportConsole
+                  ? 'El Super Admin de KorevX Core puede acceder temporalmente a visualizar tus conversaciones para asistirte. Guarda la configuración para aplicar los cambios.'
+                  : 'Ningún usuario externo (incluido el Super Admin) puede ver los chats o mensajes de tus clientes.'}
+              </p>
+            </div>
           </div>
         </div>
 
