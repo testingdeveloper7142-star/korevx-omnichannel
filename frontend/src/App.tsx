@@ -10,6 +10,7 @@ import { LoginView } from './components/auth/LoginView';
 import { AdminDashboard, Agent } from './components/dashboards/AdminDashboard';
 import { SuperAdminDashboard } from './components/dashboards/SuperAdminDashboard';
 import { EnterpriseMetricsDashboard } from './components/dashboards/EnterpriseMetricsDashboard';
+import { EnterprisesManagerDashboard } from './components/dashboards/EnterprisesManagerDashboard';
 import { TicketsView } from './components/tickets/TicketsView';
 import { Conversation, PlatformType, InteractionType, ConversationStatus, ChannelAccount, AuditLogEntry, AppNotification, QuickResponse } from './types';
 import { api } from './services/api';
@@ -271,35 +272,7 @@ const initialMockConversations: Conversation[] = [
   },
 ];
 
-const initialChannels: ChannelAccount[] = [
-  {
-    id: 'chan-ig',
-    workspaceId: 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc',
-    platform: 'INSTAGRAM',
-    accountName: 'KorevX Oficial',
-    accountHandle: '@korevx_tech',
-    isActive: true,
-    connectedAt: new Date().toISOString(),
-  },
-  {
-    id: 'chan-fb',
-    workspaceId: 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc',
-    platform: 'FACEBOOK',
-    accountName: 'KorevX Fanpage',
-    accountHandle: 'KorevX Soluciones',
-    isActive: true,
-    connectedAt: new Date().toISOString(),
-  },
-  {
-    id: 'chan-tt',
-    workspaceId: 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc',
-    platform: 'TIKTOK',
-    accountName: 'KorevX TikTok',
-    accountHandle: '@korevx_official',
-    isActive: true,
-    connectedAt: new Date().toISOString(),
-  },
-];
+const initialChannels: ChannelAccount[] = [];
 
 const initialAgents: Agent[] = [
   {
@@ -345,7 +318,7 @@ const initialAgents: Agent[] = [
 ];
 
 function AppContent({ user }: { user: AuthUser }) {
-  const { logout } = useAuth();
+  const { logout, changePassword } = useAuth();
   const [currentView, setCurrentView] = useState<MainViewType>(() => {
     if (user.role === 'SUPER_ADMIN') return 'superadmin';
     return 'inbox';
@@ -509,18 +482,25 @@ function AppContent({ user }: { user: AuthUser }) {
     localStorage.setItem('korevx_quick_templates', JSON.stringify(quickTemplates));
   }, [quickTemplates]);
 
-  // Notificaciones del Sistema con persistencia
+  // Notificaciones del Sistema aisladas por empresa (Multi-Tenant)
   const [notifications, setNotifications] = useState<AppNotification[]>(() => {
-    const saved = localStorage.getItem('korevx_notifications');
+    const storageKey = user.role === 'SUPER_ADMIN' ? 'korevx_notifications' : `korevx_notifications_${workspaceId}`;
+    const saved = localStorage.getItem(storageKey);
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {}
     }
-    return initialNotifications;
+    return user.role === 'SUPER_ADMIN' ? initialNotifications : [];
   });
 
   useEffect(() => {
-    localStorage.setItem('korevx_notifications', JSON.stringify(notifications));
-  }, [notifications]);
+    const storageKey = user.role === 'SUPER_ADMIN' ? 'korevx_notifications' : `korevx_notifications_${workspaceId}`;
+    if (Array.isArray(notifications)) {
+      localStorage.setItem(storageKey, JSON.stringify(notifications));
+    }
+  }, [notifications, workspaceId, user.role]);
 
   const [auditStartTime, setAuditStartTime] = useState<number | null>(() => {
     const saved = localStorage.getItem('korevx_audit_start_time');
@@ -1635,8 +1615,97 @@ function AppContent({ user }: { user: AuthUser }) {
               initialFilterWorkspace={superAdminFilterWorkspace}
             />
           )}
+
+          {currentView === 'enterprises' && user.role === 'SUPER_ADMIN' && (
+            <EnterprisesManagerDashboard />
+          )}
         </div>
       </main>
+
+      {/* Modal Obligatorio de Cambio de Contraseña en caso de contraseña 123456789 activa */}
+      {user?.mustChangePassword && (
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4 bg-black/90 backdrop-blur-lg">
+          <div className="bg-[#05080F] border-2 border-amber-500/70 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl shadow-amber-500/20 space-y-4">
+            <div className="flex items-center gap-3 text-amber-400">
+              <span className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-lg flex-shrink-0">
+                <i className="fa-solid fa-key"></i>
+              </span>
+              <div>
+                <h3 className="text-base font-bold text-white font-tech">Cambio Obligatorio de Contraseña</h3>
+                <p className="text-[11px] text-amber-400">Contraseña temporal activa (123456789)</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed bg-[#080C14] p-3 rounded-xl border border-[#141B29]">
+              Por políticas de seguridad y aislamiento multi-tenant, debes cambiar tu contraseña antes de utilizar la plataforma.
+            </p>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                const newP = (form.elements.namedItem('newP') as HTMLInputElement).value;
+                const confP = (form.elements.namedItem('confP') as HTMLInputElement).value;
+
+                if (newP.length < 6) {
+                  alert('La contraseña debe tener al menos 6 caracteres.');
+                  return;
+                }
+                if (newP === '123456789') {
+                  alert('No puedes seguir usando la contraseña por defecto 123456789.');
+                  return;
+                }
+                if (newP !== confP) {
+                  alert('Las contraseñas no coinciden.');
+                  return;
+                }
+
+                const res = await changePassword(newP);
+                if (!res.success) {
+                  alert(res.error || 'Error actualizando contraseña');
+                } else {
+                  soundManager.playSuccess();
+                }
+              }}
+              className="space-y-4 pt-1"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1 font-tech">
+                  Nueva Contraseña (mínimo 6 caracteres)
+                </label>
+                <input
+                  name="newP"
+                  type="password"
+                  required
+                  placeholder="Tu nueva clave segura"
+                  className="w-full px-3.5 py-2.5 bg-[#080C14] border border-[#141B29] focus:border-amber-400 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1 font-tech">
+                  Confirmar Nueva Contraseña
+                </label>
+                <input
+                  name="confP"
+                  type="password"
+                  required
+                  placeholder="Repite la nueva contraseña"
+                  className="w-full px-3.5 py-2.5 bg-[#080C14] border border-[#141B29] focus:border-amber-400 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition shadow-lg shadow-amber-500/20 font-tech uppercase tracking-wider"
+              >
+                <i className="fa-solid fa-lock-open"></i>
+                <span>Guardar y Entrar a KorevX</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Banner Global Flotante de Solicitud de Auditoría para el Operador (Visible en cualquier vista) */}
       {user?.role === 'AGENT' && pendingAudits.length > 0 && (

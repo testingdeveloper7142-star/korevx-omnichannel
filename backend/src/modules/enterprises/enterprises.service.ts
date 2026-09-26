@@ -68,7 +68,7 @@ export class EnterprisesService {
     // Hash simple de contraseña (en producción usar argon2)
     const passwordHash = crypto
       .createHash('sha256')
-      .update(dto.adminPassword || 'KorevX.2026!')
+      .update(dto.adminPassword || '123456789')
       .digest('hex');
 
     // 1. Crear Workspace en la base de datos
@@ -141,6 +141,8 @@ export class EnterprisesService {
         lastActive: 'Recién creada',
         location: dto.location || 'Bogotá, Colombia',
         techLead: dto.adminFullName,
+        adminId: adminUser.id,
+        adminEmail: adminUser.email,
         channelBreakdown: [],
         status: 'ACTIVE',
         createdAt: workspace.createdAt,
@@ -152,7 +154,7 @@ export class EnterprisesService {
         role: adminUser.role,
         workspaceId: workspace.id,
         workspaceName: workspace.name,
-        initialPassword: dto.adminPassword || 'KorevX.2026!',
+        initialPassword: dto.adminPassword || '123456789',
       },
     };
   }
@@ -203,7 +205,7 @@ export class EnterprisesService {
         slug: ws.slug,
         industry: 'Comercio & Servicios',
         plan: ws.users.length > 5 ? 'Enterprise' : 'Business Pro',
-        activeChannels: channelsList.length > 0 ? channelsList : ['Instagram', 'WhatsApp'],
+        activeChannels: channelsList,
         operatorCount: ws.users.length || 1,
         monthlyApiRequests: ws._count.conversations * 14 + 1250,
         quotaLimit: 50000,
@@ -212,12 +214,12 @@ export class EnterprisesService {
         lastActive: 'Activo',
         location: 'Colombia',
         techLead: admin ? admin.fullName : 'Admin Asignado',
+        adminId: admin ? admin.id : null,
         adminEmail: admin ? admin.email : 'admin@korevx.com',
-        channelBreakdown: [
-          { channel: 'Instagram', percent: 50 },
-          { channel: 'WhatsApp', percent: 30 },
-          { channel: 'TikTok', percent: 20 },
-        ],
+        channelBreakdown: channelsList.map((ch) => ({
+          channel: ch,
+          percent: Math.round(100 / channelsList.length),
+        })),
         status: 'ACTIVE',
         createdAt: ws.createdAt,
       };

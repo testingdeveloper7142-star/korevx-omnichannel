@@ -1,27 +1,71 @@
 import React, { useState } from 'react';
-import { useAuth, UserRole } from '../../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface LoginViewProps {
   onSuccess: () => void;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ onSuccess }) => {
-  const { login, isLoading } = useAuth();
-  const [email, setEmail] = useState('carlos@korevx.com');
-  const [password, setPassword] = useState('••••••••••••');
-  const [selectedRole, setSelectedRole] = useState<UserRole>('AGENT');
+  const { login, changePassword, isLoading } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Estado para modal obligatorio de cambio de contraseña
+  const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changeError, setChangeError] = useState<string | null>(null);
+  const [isChanging, setIsChanging] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await login(selectedRole, email);
-    onSuccess();
+    setErrorMessage(null);
+
+    const res = await login(email, password);
+    if (!res.success) {
+      setErrorMessage(res.error || 'Credenciales inválidas. Por favor verifica tu correo y contraseña.');
+      return;
+    }
+
+    if (res.mustChangePassword) {
+      setShowPasswordChangeModal(true);
+    } else {
+      onSuccess();
+    }
   };
 
-  const handleRoleSelect = (role: UserRole) => {
-    setSelectedRole(role);
-    if (role === 'AGENT') setEmail('carlos@korevx.com');
-    if (role === 'ADMIN') setEmail('supervisor@korevx.com');
-    if (role === 'SUPER_ADMIN') setEmail('core@korevx.com');
+  const handlePasswordChangeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setChangeError(null);
+
+    if (newPassword.length < 6) {
+      setChangeError('La contraseña debe contener al menos 6 caracteres.');
+      return;
+    }
+
+    if (newPassword === '123456789') {
+      setChangeError('No puedes seguir usando la contraseña temporal por defecto (123456789).');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setChangeError('Las contraseñas ingresadas no coinciden.');
+      return;
+    }
+
+    setIsChanging(true);
+    try {
+      const res = await changePassword(newPassword);
+      if (res.success) {
+        setShowPasswordChangeModal(false);
+        onSuccess();
+      } else {
+        setChangeError(res.error || 'Error al actualizar la contraseña');
+      }
+    } finally {
+      setIsChanging(false);
+    }
   };
 
   return (
@@ -59,97 +103,18 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSuccess }) => {
             </span>
           </div>
           <p className="text-xs text-slate-400 font-tech uppercase tracking-widest mt-1">
-            Gobernanza & Trazabilidad Central
+            Portal Unificado de Acceso
           </p>
         </div>
 
-        {/* Selector de Rol Rápido para Pruebas de Auditoría */}
-        <div className="mb-6 bg-[#080C14] p-1 rounded-xl border border-[#141B29]">
-          <p className="text-[10px] font-bold text-slate-400 font-tech uppercase tracking-wider px-2 pt-1 mb-1">
-            Seleccionar Perfil de Acceso
-          </p>
-          <div className="grid grid-cols-3 gap-1">
-            <button
-              type="button"
-              onClick={() => handleRoleSelect('AGENT')}
-              className={`py-2 rounded-lg text-xs font-semibold transition ${
-                selectedRole === 'AGENT'
-                  ? 'bg-[#0E1524] text-white border border-[#00F0FF]/40 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Agente
-            </button>
-            <button
-              type="button"
-              onClick={() => handleRoleSelect('ADMIN')}
-              className={`py-2 rounded-lg text-xs font-semibold transition ${
-                selectedRole === 'ADMIN'
-                  ? 'bg-[#0E1524] text-amber-300 border border-amber-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Admin
-            </button>
-            <button
-              type="button"
-              onClick={() => handleRoleSelect('SUPER_ADMIN')}
-              className={`py-2 rounded-lg text-xs font-semibold transition ${
-                selectedRole === 'SUPER_ADMIN'
-                  ? 'bg-[#0E1524] text-[#00F0FF] border border-[#00F0FF]/50 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Super Admin
-            </button>
+        {errorMessage && (
+          <div className="mb-5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2.5">
+            <i className="fa-solid fa-triangle-exclamation text-rose-400 text-sm flex-shrink-0"></i>
+            <span>{errorMessage}</span>
           </div>
-        </div>
+        )}
 
-        {/* Administradores de Empresas Creadas (si existen) */}
-        {(() => {
-          let createdAdmins: any[] = [];
-          try {
-            const saved = localStorage.getItem('korevx_registered_admins');
-            createdAdmins = saved ? JSON.parse(saved) : [];
-          } catch {}
-          if (!Array.isArray(createdAdmins) || createdAdmins.length === 0) return null;
-
-          return (
-            <div className="mb-5 p-2.5 rounded-xl bg-[#080C14] border border-[#141B29] space-y-1.5 font-tech">
-              <div className="flex items-center justify-between text-[10px] px-1 text-slate-400 uppercase tracking-wider">
-                <span className="text-amber-400 font-bold flex items-center gap-1.5">
-                  <i className="fa-solid fa-building"></i>
-                  <span>Empresas Creadas ({createdAdmins.length})</span>
-                </span>
-                <span className="text-[9px] text-slate-500">Clic para autocompletar</span>
-              </div>
-              <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
-                {createdAdmins.map((adm: any) => (
-                  <button
-                    key={adm.email}
-                    type="button"
-                    onClick={() => {
-                      setSelectedRole('ADMIN');
-                      setEmail(adm.email);
-                      setPassword(adm.initialPassword || 'KorevX.2026!');
-                    }}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] transition border flex items-center gap-1.5 ${
-                      email === adm.email
-                        ? 'bg-[#0E1524] text-[#00F0FF] border-[#00F0FF]/50 shadow-sm'
-                        : 'bg-[#05080F] text-slate-300 hover:text-white border-[#162032]'
-                    }`}
-                  >
-                    <i className="fa-solid fa-user-tie text-[9px] text-amber-400"></i>
-                    <span className="font-semibold">{adm.fullName}</span>
-                    <span className="text-slate-500 text-[9px]">({adm.workspaceName})</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Formulario */}
+        {/* Formulario Estándar: Correo y Contraseña */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5 font-tech">
@@ -160,25 +125,27 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSuccess }) => {
               <input
                 type="email"
                 required
+                placeholder="ej. admin@tuempresa.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-10 pr-3.5 py-2.5 bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none transition"
+                className="w-full pl-10 pr-3.5 py-2.5 bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none transition"
               />
             </div>
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5 font-tech">
-              Contraseña de Acceso
+              Contraseña
             </label>
             <div className="relative">
               <i className="fa-solid fa-lock absolute left-3.5 top-3.5 text-slate-500 text-xs"></i>
               <input
                 type="password"
                 required
+                placeholder="••••••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-10 pr-3.5 py-2.5 bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none transition"
+                className="w-full pl-10 pr-3.5 py-2.5 bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none transition"
               />
             </div>
           </div>
@@ -192,7 +159,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSuccess }) => {
               {isLoading ? (
                 <>
                   <i className="fa-solid fa-spinner fa-spin text-xs"></i>
-                  <span>Iniciando Sesión...</span>
+                  <span>Verificando Credenciales...</span>
                 </>
               ) : (
                 <>
@@ -208,11 +175,93 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSuccess }) => {
         <div className="mt-6 pt-5 border-t border-[#111622] flex items-center justify-between text-[11px] text-slate-500">
           <span className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]"></span>
-            <span>Supabase Auth & RLS Activo</span>
+            <span>Autenticación Multi-Tenant Segura</span>
           </span>
-          <span className="font-tech text-slate-400">v1.2.0</span>
+          <span className="font-tech text-slate-400">v2.1.0</span>
         </div>
       </div>
+
+      {/* Modal Obligatorio de Cambio de Contraseña */}
+      {showPasswordChangeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
+          <div className="w-full max-w-md bg-[#05080F] border border-amber-500/50 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-amber-500/10 fade-in">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center text-lg">
+                <i className="fa-solid fa-key"></i>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white font-tech">
+                  Cambio Obligatorio de Contraseña
+                </h3>
+                <p className="text-[11px] text-amber-400 font-medium">
+                  Contraseña temporal detectada (123456789)
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed mb-5">
+              Por políticas de seguridad y aislamiento multi-tenant, debes definir una contraseña nueva y personal antes de continuar.
+            </p>
+
+            {changeError && (
+              <div className="mb-4 p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+                <i className="fa-solid fa-circle-exclamation text-rose-400"></i>
+                <span>{changeError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handlePasswordChangeSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 font-tech">
+                  Nueva Contraseña (mínimo 6 caracteres)
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Tu nueva clave segura"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-[#080C14] border border-[#141B29] focus:border-amber-400/60 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none transition"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 font-tech">
+                  Confirmar Nueva Contraseña
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Repite tu nueva contraseña"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-[#080C14] border border-[#141B29] focus:border-amber-400/60 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none transition"
+                />
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={isChanging}
+                  className="w-full py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition shadow-lg shadow-amber-500/20 font-tech uppercase tracking-wider"
+                >
+                  {isChanging ? (
+                    <>
+                      <i className="fa-solid fa-spinner fa-spin"></i>
+                      <span>Guardando Nueva Contraseña...</span>
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-lock-open"></i>
+                      <span>Actualizar y Entrar</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

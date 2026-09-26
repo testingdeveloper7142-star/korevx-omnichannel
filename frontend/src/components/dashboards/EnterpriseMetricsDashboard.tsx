@@ -617,32 +617,8 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
           </p>
         </div>
 
-        {/* Acciones Super Admin: Botón Crear Empresa y Selectores */}
+        {/* Acciones Super Admin: Selectores */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Botón Destacado: Crear Nueva Empresa y Administrador */}
-          <button
-            onClick={() => {
-              setCreateSuccessData(null);
-              setFormError(null);
-              setFormData({
-                name: '',
-                industry: 'Retail & E-commerce',
-                plan: 'Business Pro',
-                quotaLimit: 50000,
-                maxOperators: 5,
-                location: 'Bogotá, Colombia',
-                adminFullName: '',
-                adminEmail: '',
-                adminPassword: '',
-              });
-              setIsCreateModalOpen(true);
-            }}
-            className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0072FF] hover:from-[#00D7E5] hover:to-[#005ecc] text-[#030508] font-bold text-xs flex items-center gap-2 transition shadow-lg shadow-[#00F0FF]/25 font-tech tracking-wide"
-          >
-            <i className="fa-solid fa-plus text-xs"></i>
-            <span>Nueva Empresa y Admin</span>
-          </button>
-
           {/* Selector de Pestañas: Global vs Por Empresa */}
           <div className="flex items-center bg-[#080C14] p-1 rounded-xl border border-[#141B29] text-xs font-tech">
             <button
@@ -1434,8 +1410,8 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
           document.body
         )}
 
-      {/* Modal: Crear Nueva Empresa y Administrador (Portal al body) */}
-      {isCreateModalOpen &&
+      {/* Modal: Crear Nueva Empresa y Administrador (Deshabilitado en métricas - ahora en pestaña dedicada) */}
+      {false && isCreateModalOpen &&
         createPortal(
           <div className="fixed inset-0 z-[99999] flex items-start justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md overflow-y-auto">
             <div className="relative w-full max-w-2xl bg-[#05080F] border border-[#141B29] hover:border-[#00F0FF]/30 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/90 my-auto transition">

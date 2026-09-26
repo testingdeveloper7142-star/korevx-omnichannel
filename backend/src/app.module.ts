@@ -8,6 +8,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { ConversationsModule } from './modules/conversations/conversations.module';
 import { TicketsModule } from './modules/tickets/tickets.module';
 import { EnterprisesModule } from './modules/enterprises/enterprises.module';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { EnterprisesModule } from './modules/enterprises/enterprises.module';
     ConversationsModule,
     TicketsModule,
     EnterprisesModule,
+    AuthModule,
   ],
 })
 export class AppModule {}

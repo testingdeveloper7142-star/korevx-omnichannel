@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { AppNotification } from '../types';
 import { soundManager } from '../utils/audio';
 
-export type MainViewType = 'inbox' | 'dashboard' | 'channels' | 'tickets' | 'admin' | 'superadmin';
+export type MainViewType = 'inbox' | 'dashboard' | 'channels' | 'tickets' | 'admin' | 'superadmin' | 'enterprises';
 
 interface HeaderProps {
   currentView: MainViewType;
@@ -97,7 +97,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="hidden md:flex items-center gap-1.5 bg-[#080C14] p-1 rounded-xl border border-[#141B29]">
         {user?.role === 'SUPER_ADMIN' ? (
           <>
-            {/* Super Admin: Exclusivamente Gobernanza Central y Métricas de Empresas */}
+            {/* Super Admin: 1. Gobernanza Central, 2. Empresas & Administradores, 3. Métricas Corporativas */}
             <button
               onClick={() => onViewChange('superadmin')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition ${
@@ -111,6 +111,18 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             <button
+              onClick={() => onViewChange('enterprises')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition ${
+                currentView === 'enterprises'
+                  ? 'text-[#00F0FF] bg-[#0E1524] border border-[#00F0FF]/50 shadow-sm shadow-[#00F0FF]/20'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <i className="fa-solid fa-building-user text-xs text-[#00F0FF]"></i>
+              <span>Empresas & Admins</span>
+            </button>
+
+            <button
               onClick={() => onViewChange('dashboard')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition ${
                 currentView === 'dashboard'
@@ -118,8 +130,8 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <i className="fa-solid fa-building-shield text-xs text-[#00F0FF]"></i>
-              <span>Métricas de Empresas</span>
+              <i className="fa-solid fa-chart-line text-xs text-[#00F0FF]"></i>
+              <span>Métricas Corporativas</span>
             </button>
 
             {(isSupportModeActive || supportModeInfo?.active) && (
