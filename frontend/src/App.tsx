@@ -456,6 +456,23 @@ function AppContent({ user }: { user: AuthUser }) {
     localStorage.setItem(`korevx_audit_requests_${workspaceId}`, JSON.stringify(auditRequests));
   }, [auditRequests, workspaceId]);
 
+  // Cuotas de redes sociales asignadas a este workspace
+  const currentEnterpriseLimits = (() => {
+    try {
+      const saved = localStorage.getItem(`korevx_channel_limits_${workspaceId}`);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    try {
+      const allEnts = localStorage.getItem('korevx_custom_enterprises');
+      if (allEnts) {
+        const list = JSON.parse(allEnts);
+        const match = list.find((e: any) => e.id === workspaceId);
+        if (match && match.channelLimits) return match.channelLimits;
+      }
+    } catch {}
+    return { FACEBOOK: 2, INSTAGRAM: 1, WHATSAPP: 1, TIKTOK: 0 };
+  })();
+
   // Registro de Auditoría Integral (Audit Log Ley 1581) con persistencia
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => {
     const saved = localStorage.getItem('korevx_audit_logs');
@@ -1582,6 +1599,7 @@ function AppContent({ user }: { user: AuthUser }) {
           {currentView === 'channels' && user.role === 'ADMIN' && (
             <ChannelsManager
               channels={channels}
+              channelLimits={currentEnterpriseLimits}
               onChannelRefresh={() => {}}
               onToggleChannelStatus={handleToggleChannelStatus}
               onAddChannel={handleAddChannel}

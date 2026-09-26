@@ -5,6 +5,12 @@ import { api } from '../services/api';
 
 interface ChannelsManagerProps {
   channels: ChannelAccount[];
+  channelLimits?: {
+    FACEBOOK?: number;
+    INSTAGRAM?: number;
+    WHATSAPP?: number;
+    TIKTOK?: number;
+  };
   onChannelRefresh: () => void;
   onToggleChannelStatus?: (channelId: string) => void;
   onAddChannel?: (newChannel: ChannelAccount) => void;
@@ -13,6 +19,7 @@ interface ChannelsManagerProps {
 
 export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
   channels,
+  channelLimits,
   onChannelRefresh,
   onToggleChannelStatus,
   onAddChannel,
@@ -25,11 +32,31 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
   const [simulatedContent, setSimulatedContent] = useState('¡Hola KorevX! Me interesa integrar su software para mi negocio.');
   const [simSuccess, setSimSuccess] = useState(false);
 
+  // Cuotas efectivas asignadas por el Super Admin
+  const effectiveLimits = {
+    FACEBOOK: typeof channelLimits?.FACEBOOK === 'number' ? channelLimits.FACEBOOK : 2,
+    INSTAGRAM: typeof channelLimits?.INSTAGRAM === 'number' ? channelLimits.INSTAGRAM : 1,
+    WHATSAPP: typeof channelLimits?.WHATSAPP === 'number' ? channelLimits.WHATSAPP : 1,
+    TIKTOK: typeof channelLimits?.TIKTOK === 'number' ? channelLimits.TIKTOK : 0,
+  };
+
+  const channelCounts = {
+    FACEBOOK: channels.filter((c) => c.platform === 'FACEBOOK').length,
+    INSTAGRAM: channels.filter((c) => c.platform === 'INSTAGRAM').length,
+    WHATSAPP: channels.filter((c) => c.platform === 'WHATSAPP').length,
+    TIKTOK: channels.filter((c) => c.platform === 'TIKTOK').length,
+  };
+
   // Modal para conectar nuevo canal
   const [isAddChannelModalOpen, setIsAddChannelModalOpen] = useState(false);
   const [newPlatform, setNewPlatform] = useState<PlatformType>('WHATSAPP');
   const [newAccountName, setNewAccountName] = useState('');
   const [newAccountHandle, setNewAccountHandle] = useState('');
+
+  const currentPlatformCount = (channelCounts as any)[newPlatform] ?? 0;
+  const currentPlatformLimit = (effectiveLimits as any)[newPlatform] ?? 0;
+  const isPlatformZero = currentPlatformLimit === 0;
+  const isPlatformQuotaReached = currentPlatformCount >= currentPlatformLimit;
 
   const handleSimulate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +83,17 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
   const handleCreateChannel = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAccountName.trim()) return;
+
+    // Validación de cuota estricta por red social
+    if (isPlatformZero) {
+      alert(`Tu empresa no tiene habilitada la red social ${newPlatform} en su plan actual. Solicita al Super Administrador ampliar tu cuota.`);
+      return;
+    }
+
+    if (isPlatformQuotaReached) {
+      alert(`Has alcanzado el límite máximo permitido para ${newPlatform} (${currentPlatformCount}/${currentPlatformLimit} cuentas). No es posible vincular más cuentas.`);
+      return;
+    }
 
     const createdChannel: ChannelAccount = {
       id: `chan-${newPlatform.toLowerCase()}-${Date.now()}`,
@@ -140,6 +178,67 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
           <i className="fa-solid fa-plus text-xs"></i>
           <span>Conectar Nueva Red Social</span>
         </button>
+      </div>
+
+      {/* Banner de Cuotas Asignadas por Super Admin */}
+      <div className="p-4 rounded-2xl bg-[#05080F] border border-[#141B29] space-y-2">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-tech font-bold text-white flex items-center gap-2">
+            <i className="fa-solid fa-shield-halved text-[#00F0FF]"></i>
+            <span>Cuotas de Redes Sociales Asignadas a tu Empresa</span>
+          </span>
+          <span className="text-[10px] text-slate-400 font-tech">Gobernadas por Super Admin</span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+          <div className="p-2.5 rounded-xl bg-[#080C14] border border-[#141B29] flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-lg bg-[#1877F2]/20 text-[#1877F2] flex items-center justify-center text-xs">
+                <i className="fa-brands fa-facebook-f"></i>
+              </span>
+              <span className="text-xs text-slate-300 font-tech">Facebook</span>
+            </div>
+            <span className={`text-xs font-bold font-tech ${channelCounts.FACEBOOK >= effectiveLimits.FACEBOOK ? 'text-amber-400' : 'text-white'}`}>
+              {channelCounts.FACEBOOK} / {effectiveLimits.FACEBOOK}
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded-xl bg-[#080C14] border border-[#141B29] flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center text-xs">
+                <i className="fa-brands fa-instagram"></i>
+              </span>
+              <span className="text-xs text-slate-300 font-tech">Instagram</span>
+            </div>
+            <span className={`text-xs font-bold font-tech ${channelCounts.INSTAGRAM >= effectiveLimits.INSTAGRAM ? 'text-amber-400' : 'text-white'}`}>
+              {channelCounts.INSTAGRAM} / {effectiveLimits.INSTAGRAM}
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded-xl bg-[#080C14] border border-[#141B29] flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs">
+                <i className="fa-brands fa-whatsapp"></i>
+              </span>
+              <span className="text-xs text-slate-300 font-tech">WhatsApp</span>
+            </div>
+            <span className={`text-xs font-bold font-tech ${channelCounts.WHATSAPP >= effectiveLimits.WHATSAPP ? 'text-amber-400' : 'text-white'}`}>
+              {channelCounts.WHATSAPP} / {effectiveLimits.WHATSAPP}
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded-xl bg-[#080C14] border border-[#141B29] flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs">
+                <i className="fa-brands fa-tiktok"></i>
+              </span>
+              <span className="text-xs text-slate-300 font-tech">TikTok</span>
+            </div>
+            <span className={`text-xs font-bold font-tech ${effectiveLimits.TIKTOK === 0 ? 'text-slate-500' : channelCounts.TIKTOK >= effectiveLimits.TIKTOK ? 'text-amber-400' : 'text-white'}`}>
+              {effectiveLimits.TIKTOK === 0 ? '0 (No incl.)' : `${channelCounts.TIKTOK} / ${effectiveLimits.TIKTOK}`}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Grid de Canales Oficiales Activos */}
@@ -331,11 +430,10 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
                     onChange={(e) => setNewPlatform(e.target.value as PlatformType)}
                     className="w-full bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl p-2.5 text-xs text-white"
                   >
-                    <option value="FACEBOOK">Facebook Fanpage (Meta Graph API)</option>
-                    <option value="INSTAGRAM">Instagram Professional (Meta)</option>
-                    <option value="WHATSAPP">WhatsApp Business Cloud API</option>
-                    <option value="TIKTOK">TikTok for Business</option>
-                    <option value="TWITTER_X">X / Twitter API v2</option>
+                    <option value="FACEBOOK">Facebook Fanpage ({channelCounts.FACEBOOK}/{effectiveLimits.FACEBOOK} en uso)</option>
+                    <option value="INSTAGRAM">Instagram Professional ({channelCounts.INSTAGRAM}/{effectiveLimits.INSTAGRAM} en uso)</option>
+                    <option value="WHATSAPP">WhatsApp Business API ({channelCounts.WHATSAPP}/{effectiveLimits.WHATSAPP} en uso)</option>
+                    <option value="TIKTOK">TikTok for Business ({channelCounts.TIKTOK}/{effectiveLimits.TIKTOK} en uso)</option>
                   </select>
                 </div>
 
@@ -366,8 +464,29 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
                   />
                 </div>
 
+                {/* Advertencia de Cuota Superada o No Habilitada */}
+                {isPlatformZero && (
+                  <div className="p-3.5 rounded-2xl bg-rose-950/30 border border-rose-500/50 text-xs text-rose-300 flex items-start gap-2.5">
+                    <i className="fa-solid fa-ban text-rose-400 text-sm flex-shrink-0 mt-0.5"></i>
+                    <div>
+                      <strong className="block font-tech text-rose-200">Red Social No Habilitada en tu Plan</strong>
+                      <span>Tu empresa tiene asignado un límite de <strong>0 cuentas</strong> para {newPlatform}. Contacta al Super Administrador para activar esta plataforma.</span>
+                    </div>
+                  </div>
+                )}
+
+                {isPlatformQuotaReached && !isPlatformZero && (
+                  <div className="p-3.5 rounded-2xl bg-amber-950/30 border border-amber-500/50 text-xs text-amber-300 flex items-start gap-2.5">
+                    <i className="fa-solid fa-triangle-exclamation text-amber-400 text-sm flex-shrink-0 mt-0.5"></i>
+                    <div>
+                      <strong className="block font-tech text-amber-200">Límite Máximo Asignado Alcanzado</strong>
+                      <span>Has alcanzado el cupo máximo de {newPlatform} ({currentPlatformCount}/{currentPlatformLimit} cuentas). No puedes agregar más cuentas a menos que el Super Administrador aumente tu límite.</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Guía de Configuración de Webhook Meta si es Facebook o Instagram */}
-                {(newPlatform === 'FACEBOOK' || newPlatform === 'INSTAGRAM') && (
+                {(newPlatform === 'FACEBOOK' || newPlatform === 'INSTAGRAM') && !isPlatformZero && !isPlatformQuotaReached && (
                   <div className="p-3.5 rounded-2xl bg-[#080C14] border border-[#00F0FF]/30 space-y-2 text-xs font-tech">
                     <div className="flex items-center gap-2 text-[#00F0FF] font-bold">
                       <i className="fa-brands fa-meta text-sm"></i>
@@ -411,9 +530,14 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-[#00F0FF] hover:bg-[#00D7E5] text-[#030508] text-xs font-bold font-tech shadow-md shadow-[#00F0FF]/20"
+                    disabled={isPlatformZero || isPlatformQuotaReached}
+                    className="px-5 py-2 rounded-xl bg-[#00F0FF] hover:bg-[#00D7E5] disabled:opacity-40 disabled:cursor-not-allowed text-[#030508] text-xs font-bold font-tech shadow-md shadow-[#00F0FF]/20 transition"
                   >
-                    Conectar Canal
+                    {isPlatformZero
+                      ? 'Plataforma No Permitida'
+                      : isPlatformQuotaReached
+                      ? 'Límite Máximo Alcanzado'
+                      : 'Conectar Canal'}
                   </button>
                 </div>
               </form>

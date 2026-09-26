@@ -1,7 +1,7 @@
-import { Controller, Get, Post, Delete, Param, Query, Body, Req } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Query, Body, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Request } from 'express';
-import { EnterprisesService, CreateEnterpriseDto } from './enterprises.service';
+import { EnterprisesService, CreateEnterpriseDto, ChannelLimits } from './enterprises.service';
 
 @ApiTags('Enterprises & Tenants')
 @Controller('api/v1/enterprises')
@@ -27,6 +27,26 @@ export class EnterprisesController {
     return this.enterprisesService.createEnterpriseWithAdmin(
       body,
       body.creatorUserId,
+      ipAddress,
+      userAgent,
+    );
+  }
+
+  @Patch(':id/channel-limits')
+  @ApiOperation({ summary: 'Actualizar límites de redes sociales asignadas a una empresa' })
+  async updateChannelLimits(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: { channelLimits: Partial<ChannelLimits>; requesterUserId?: string },
+  ) {
+    const rawIp = req.headers['x-forwarded-for'] as string;
+    const ipAddress = rawIp ? rawIp.split(',')[0].trim() : req.socket.remoteAddress || '127.0.0.1';
+    const userAgent = (req.headers['user-agent'] as string) || 'KorevX SuperAdmin WebApp';
+
+    return this.enterprisesService.updateChannelLimits(
+      id,
+      body.channelLimits,
+      body.requesterUserId,
       ipAddress,
       userAgent,
     );

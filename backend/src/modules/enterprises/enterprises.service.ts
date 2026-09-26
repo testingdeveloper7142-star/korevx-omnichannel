@@ -4,6 +4,13 @@ import { AuditService } from '../audit/audit.service';
 import { AuditAction, AuditResource, UserRole } from '@prisma/client';
 import * as crypto from 'crypto';
 
+export interface ChannelLimits {
+  FACEBOOK: number;
+  INSTAGRAM: number;
+  WHATSAPP: number;
+  TIKTOK: number;
+}
+
 export interface CreateEnterpriseDto {
   name: string;
   nit?: string;
@@ -18,6 +25,9 @@ export interface CreateEnterpriseDto {
   adminFullName: string;
   adminEmail: string;
   adminPassword?: string;
+
+  // Límites de redes sociales por plataforma
+  channelLimits?: Partial<ChannelLimits>;
 }
 
 @Injectable()
@@ -91,8 +101,15 @@ export class EnterprisesService {
       },
     });
 
+    const channelLimits: ChannelLimits = {
+      FACEBOOK: typeof dto.channelLimits?.FACEBOOK === 'number' ? dto.channelLimits.FACEBOOK : 1,
+      INSTAGRAM: typeof dto.channelLimits?.INSTAGRAM === 'number' ? dto.channelLimits.INSTAGRAM : 1,
+      WHATSAPP: typeof dto.channelLimits?.WHATSAPP === 'number' ? dto.channelLimits.WHATSAPP : 1,
+      TIKTOK: typeof dto.channelLimits?.TIKTOK === 'number' ? dto.channelLimits.TIKTOK : 0,
+    };
+
     // 3. Crear sesión de auditoría inmutable
-    const description = `Alta de nueva Empresa "${dto.name}" (NIT: ${dto.nit || 'N/A'}, Plan: ${dto.plan || 'Business Pro'}, Sector: ${dto.industry || 'General'}) y creación de su Administrador Principal "${dto.adminFullName}" (${emailClean}) por Super Admin.`;
+    const description = `Alta de nueva Empresa "${dto.name}" (NIT: ${dto.nit || 'N/A'}, Plan: ${dto.plan || 'Business Pro'}, Sector: ${dto.industry || 'General'}) y creación de su Administrador Principal "${dto.adminFullName}" (${emailClean}) por Super Admin. Límites Redes: FB:${channelLimits.FACEBOOK}, IG:${channelLimits.INSTAGRAM}, WA:${channelLimits.WHATSAPP}, TT:${channelLimits.TIKTOK}`;
 
     await this.auditService.recordAudit({
       workspaceId: workspace.id,
@@ -117,6 +134,7 @@ export class EnterprisesService {
         adminFullName: adminUser.fullName,
         adminEmail: adminUser.email,
         adminRole: adminUser.role,
+        channelLimits,
         createdAt: new Date().toISOString(),
       },
     });
@@ -133,6 +151,7 @@ export class EnterprisesService {
         industry: dto.industry || 'Tecnología & Servicios',
         plan: dto.plan || 'Business Pro',
         activeChannels: [],
+        channelLimits,
         operatorCount: 1, // El administrador inicial
         monthlyApiRequests: 0,
         quotaLimit: dto.quotaLimit || 50000,
@@ -183,6 +202,11 @@ export class EnterprisesService {
             isActive: true,
           },
         },
+        auditLogs: {
+          where: { resource: { in: [AuditResource.SETTINGS, AuditResource.USER] } },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+        },
         _count: {
           select: {
             conversations: true,
@@ -199,6 +223,16 @@ export class EnterprisesService {
       const admin = ws.users.find((u) => u.role === UserRole.ADMIN) || ws.users[0];
       const channelsList = Array.from(new Set(ws.channels.map((c) => c.platform)));
 
+      // Extraer límites de canales configurados en AuditLog
+      let channelLimits: ChannelLimits = { FACEBOOK: 2, INSTAGRAM: 1, WHATSAPP: 1, TIKTOK: 0 };
+      for (const log of ws.auditLogs) {
+        const state = log.newState as any;
+        if (state && state.channelLimits) {
+          channelLimits = { ...channelLimits, ...state.channelLimits };
+          break;
+        }
+      }
+
       return {
         id: ws.id,
         name: ws.name,
@@ -206,6 +240,7 @@ export class EnterprisesService {
         industry: 'Comercio & Servicios',
         plan: ws.users.length > 5 ? 'Enterprise' : 'Business Pro',
         activeChannels: channelsList,
+        channelLimits,
         operatorCount: ws.users.length || 1,
         monthlyApiRequests: ws._count.conversations * 14 + 1250,
         quotaLimit: 50000,
@@ -224,6 +259,48 @@ export class EnterprisesService {
         createdAt: ws.createdAt,
       };
     });
+  }
+
+  /**
+   * Actualiza los límites de canales permitidos por red social para una empresa
+   */
+  async updateChannelLimits(
+    workspaceId: string,
+    channelLimits: Partial<ChannelLimits>,
+    requesterUserId?: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { id: workspaceId },
+    });
+
+    if (!workspace) {
+      throw new BadRequestException('Empresa no encontrada');
+    }
+
+    const description = `Límites de redes sociales actualizados para "${workspace.name}": FB:${channelLimits.FACEBOOK ?? 0}, IG:${channelLimits.INSTAGRAM ?? 0}, WA:${channelLimits.WHATSAPP ?? 0}, TT:${channelLimits.TIKTOK ?? 0}`;
+
+    await this.auditService.recordAudit({
+      workspaceId,
+      userId: requesterUserId,
+      action: AuditAction.UPDATE,
+      resource: AuditResource.SETTINGS,
+      resourceId: workspaceId,
+      description,
+      ipAddress: ipAddress || '127.0.0.1',
+      userAgent: userAgent || 'KorevX SuperAdmin WebApp',
+      newState: { channelLimits },
+    });
+
+    this.logger.log(`Límites actualizados para empresa ${workspace.name}: ${JSON.stringify(channelLimits)}`);
+
+    return {
+      success: true,
+      workspaceId,
+      channelLimits,
+      message: `Límites de redes sociales actualizados exitosamente para ${workspace.name}`,
+    };
   }
 
   /**
