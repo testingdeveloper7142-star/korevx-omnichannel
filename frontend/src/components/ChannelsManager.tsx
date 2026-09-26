@@ -537,36 +537,6 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
                   </div>
                 )}
 
-                {/* Guía de Configuración de Webhook Meta si es Facebook o Instagram */}
-                {(newPlatform === 'FACEBOOK' || newPlatform === 'INSTAGRAM') && !isPlatformZero && !isPlatformQuotaReached && (
-                  <div className="p-3.5 rounded-2xl bg-[#080C14] border border-[#00F0FF]/30 space-y-2 text-xs font-tech">
-                    <div className="flex items-center gap-2 text-[#00F0FF] font-bold">
-                      <i className="fa-brands fa-meta text-sm"></i>
-                      <span>Configuración del Webhook en Meta for Developers:</span>
-                    </div>
-                    <div className="space-y-1.5 text-[11px] text-slate-300">
-                      <div className="bg-[#05080F] p-2 rounded-lg border border-[#141B29] flex flex-col gap-0.5">
-                        <span className="text-[10px] text-slate-500 uppercase">URL de devolución de llamada (Callback):</span>
-                        <code className="text-cyan-300 font-mono text-[10px] break-all select-all">
-                          http://localhost:3000/api/v1/webhooks/meta
-                        </code>
-                        <span className="text-[9px] text-slate-500 italic">
-                          (En producción o con ngrok: https://tu-dominio.com/api/v1/webhooks/meta)
-                        </span>
-                      </div>
-                      <div className="bg-[#05080F] p-2 rounded-lg border border-[#141B29] flex flex-col gap-0.5">
-                        <span className="text-[10px] text-slate-500 uppercase">Token de Verificación (Verify Token):</span>
-                        <code className="text-emerald-400 font-mono text-[10px] select-all">
-                          korevx_webhook_verify_token_secure
-                        </code>
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        Campos suscritos requeridos: <strong className="text-white">messages</strong>, <strong className="text-white">messaging_postbacks</strong>, <strong className="text-white">feed</strong>.
-                      </div>
-                    </div>
-                  </div>
-                )}
-
                 <div className="p-3 rounded-xl bg-cyan-950/20 border border-cyan-800/30 text-[11px] text-cyan-300">
                   <i className="fa-solid fa-circle-info mr-1.5"></i>
                   Al conectar este canal, quedará inmediatamente disponible para la recepción de mensajes y visible para los operadores.
