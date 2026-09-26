@@ -56,6 +56,50 @@ export const Header: React.FC<HeaderProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const [companyLogo, setCompanyLogo] = useState<string | null>(null);
+  const [companyName, setCompanyName] = useState<string | null>(null);
+
+  const loadCompanyProfile = () => {
+    if (user?.workspaceId) {
+      try {
+        const savedProfile = localStorage.getItem(`korevx_company_profile_${user.workspaceId}`);
+        if (savedProfile) {
+          const parsed = JSON.parse(savedProfile);
+          if (parsed.logoUrl) setCompanyLogo(parsed.logoUrl);
+          if (parsed.companyName || parsed.name) setCompanyName(parsed.companyName || parsed.name);
+          return;
+        }
+        const savedEnts = localStorage.getItem('korevx_custom_enterprises');
+        if (savedEnts) {
+          const list = JSON.parse(savedEnts);
+          const found = list.find((e: any) => e.id === user.workspaceId);
+          if (found) {
+            if (found.logoUrl) setCompanyLogo(found.logoUrl);
+            if (found.name) setCompanyName(found.name);
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      setCompanyLogo(null);
+      setCompanyName(null);
+    }
+  };
+
+  useEffect(() => {
+    loadCompanyProfile();
+    const handleUpdate = (e: any) => {
+      if (e?.detail) {
+        if (e.detail.logoUrl !== undefined) setCompanyLogo(e.detail.logoUrl);
+        if (e.detail.name !== undefined) setCompanyName(e.detail.name);
+      } else {
+        loadCompanyProfile();
+      }
+    };
+    window.addEventListener('korevx_company_profile_updated', handleUpdate);
+    return () => window.removeEventListener('korevx_company_profile_updated', handleUpdate);
+  }, [user?.workspaceId]);
 
   return (
     <header className="h-14 border-b border-[#111622] bg-[#05080F] px-4 sm:px-5 flex items-center justify-between relative z-50 flex-shrink-0">
@@ -68,26 +112,36 @@ export const Header: React.FC<HeaderProps> = ({
           <i className="fa-solid fa-bars text-xs"></i>
         </button>
 
-        {/* Logo Oficial KorevX */}
+        {/* Logo Oficial KorevX / Logo Corporativo Personalizado */}
         <div className="flex items-center gap-3">
           <div className="relative group">
             <img
-              src="/logo-korevx.png"
-              alt="KorevX"
-              className="w-8 h-8 rounded-lg object-cover ring-1 ring-[#00F0FF]/40 shadow-sm shadow-[#00F0FF]/25"
+              src={companyLogo || "/logo-korevx.png"}
+              alt={companyName || "KorevX"}
+              referrerPolicy="no-referrer"
+              className="w-8 h-8 rounded-lg object-contain ring-1 ring-[#00F0FF]/40 shadow-sm shadow-[#00F0FF]/25 bg-black/40 p-0.5"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = "/logo-korevx.png";
+              }}
             />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-tech font-bold text-base tracking-wide text-white">
-                Korev<span className="text-[#00F0FF]">X</span>
+              <span className="font-tech font-bold text-base tracking-wide text-white truncate max-w-[150px] sm:max-w-[220px]">
+                {companyName && user?.role !== 'SUPER_ADMIN' ? (
+                  companyName
+                ) : (
+                  <>
+                    Korev<span className="text-[#00F0FF]">X</span>
+                  </>
+                )}
               </span>
               <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-[#00F0FF]/10 text-[#00F0FF] border border-[#00F0FF]/30 font-tech">
-                Omnichannel
+                {user?.role === 'SUPER_ADMIN' ? 'Omnichannel' : 'Enterprise'}
               </span>
             </div>
-            <p className="text-[8px] font-bold tracking-[0.2em] uppercase text-slate-400 font-tech">
-              Diseñando el Futuro
+            <p className="text-[8px] font-bold tracking-[0.2em] uppercase text-slate-400 font-tech truncate max-w-[180px]">
+              {companyName && user?.role !== 'SUPER_ADMIN' ? 'KorevX Omnichannel' : 'Diseñando el Futuro'}
             </p>
           </div>
         </div>

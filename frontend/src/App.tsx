@@ -1333,6 +1333,7 @@ function AppContent({ user }: { user: AuthUser }) {
             <AdminDashboard
               maxOperators={currentEnterpriseMaxOperators}
               agents={agents}
+              conversations={conversations}
               onAddAgent={handleAddAgent}
               onToggleAgentStatus={handleToggleAgentStatus}
               quickTemplates={quickTemplates}

@@ -15,7 +15,7 @@ export interface EnterpriseItem {
   name: string;
   nit?: string;
   industry: string;
-  plan: 'Enterprise' | 'Business Pro' | 'Starter';
+  plan?: string;
   activeChannels: string[];
   channelLimits?: ChannelLimits;
   operatorCount: number;
@@ -47,7 +47,6 @@ export const EnterprisesManagerDashboard: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [planFilter, setPlanFilter] = useState<string>('ALL');
 
   // Modal de Creación
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -56,12 +55,11 @@ export const EnterprisesManagerDashboard: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [createSuccessData, setCreateSuccessData] = useState<any | null>(null);
 
-  // Formulario de Creación con límites por red social
+  // Formulario de Creación con cuotas directas
   const [formData, setFormData] = useState({
     name: '',
     nit: '',
     industry: 'Retail & E-commerce',
-    plan: 'Business Pro' as 'Enterprise' | 'Business Pro' | 'Starter',
     quotaLimit: 50000,
     maxOperators: 5,
     location: 'Bogotá, Colombia',
@@ -194,7 +192,7 @@ export const EnterprisesManagerDashboard: React.FC = () => {
           name: formData.name,
           nit: formData.nit || 'En trámite',
           industry: formData.industry,
-          plan: formData.plan,
+          plan: 'Empresarial',
           activeChannels: [], // Canales estrictamente vacíos
           channelLimits: formData.channelLimits,
           operatorCount: 1,
@@ -560,14 +558,14 @@ export const EnterprisesManagerDashboard: React.FC = () => {
   };
 
   const filtered = enterprises.filter((ent) => {
-    if (planFilter !== 'ALL' && ent.plan !== planFilter) return false;
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
       return (
         ent.name.toLowerCase().includes(q) ||
         (ent.adminEmail && ent.adminEmail.toLowerCase().includes(q)) ||
         (ent.techLead && ent.techLead.toLowerCase().includes(q)) ||
-        ent.industry.toLowerCase().includes(q)
+        ent.industry.toLowerCase().includes(q) ||
+        (ent.nit && ent.nit.toLowerCase().includes(q))
       );
     }
     return true;
@@ -613,7 +611,6 @@ export const EnterprisesManagerDashboard: React.FC = () => {
                 name: '',
                 nit: '',
                 industry: 'Retail & E-commerce',
-                plan: 'Business Pro',
                 quotaLimit: 50000,
                 maxOperators: 5,
                 location: 'Bogotá, Colombia',
@@ -668,20 +665,8 @@ export const EnterprisesManagerDashboard: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <span className="text-[11px] text-slate-400 font-tech">Plan:</span>
-          <select
-            value={planFilter}
-            onChange={(e) => setPlanFilter(e.target.value)}
-            className="px-3 py-1.5 bg-[#080C14] border border-[#141B29] rounded-xl text-xs text-slate-300 focus:outline-none font-tech"
-          >
-            <option value="ALL">Todos los Planes</option>
-            <option value="Enterprise">Enterprise</option>
-            <option value="Business Pro">Business Pro</option>
-            <option value="Starter">Starter</option>
-          </select>
-
-          <span className="text-xs text-slate-500 font-tech ml-2">
-            Total: <strong className="text-white">{filtered.length}</strong>
+          <span className="text-xs text-slate-400 font-tech">
+            Total Empresas: <strong className="text-[#00F0FF]">{filtered.length}</strong>
           </span>
         </div>
       </div>
@@ -721,14 +706,9 @@ export const EnterprisesManagerDashboard: React.FC = () => {
                       </div>
                     </div>
 
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-tech border ${
-                      ent.plan === 'Enterprise'
-                        ? 'bg-purple-500/15 text-purple-400 border-purple-500/30'
-                        : ent.plan === 'Business Pro'
-                        ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30'
-                        : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                    }`}>
-                      {ent.plan}
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold font-tech border bg-emerald-500/15 text-emerald-400 border-emerald-500/30 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                      <span>Activa</span>
                     </span>
                   </div>
 
@@ -1258,17 +1238,15 @@ export const EnterprisesManagerDashboard: React.FC = () => {
 
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-300 mb-1 font-tech">
-                          Plan de Suscripción
+                          Ubicación / Ciudad Sede
                         </label>
-                        <select
-                          value={formData.plan}
-                          onChange={(e) => setFormData({ ...formData, plan: e.target.value as any })}
-                          className="w-full px-3 py-2 bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl text-xs text-white focus:outline-none transition font-tech"
-                        >
-                          <option value="Enterprise">Enterprise (Ilimitado - SLA 100%)</option>
-                          <option value="Business Pro">Business Pro (Hasta 15 Op - SLA 99.9%)</option>
-                          <option value="Starter">Starter (Hasta 5 Op - SLA 99.5%)</option>
-                        </select>
+                        <input
+                          type="text"
+                          value={formData.location}
+                          onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                          placeholder="ej: Bogotá, Colombia"
+                          className="w-full px-3 py-2 bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none transition font-tech"
+                        />
                       </div>
                     </div>
                   </div>
@@ -1418,6 +1396,33 @@ export const EnterprisesManagerDashboard: React.FC = () => {
                                 ...formData.channelLimits,
                                 TIKTOK: Math.max(0, parseInt(e.target.value, 10) || 0),
                               },
+                            })
+                          }
+                          className="w-full px-2.5 py-1.5 bg-[#05080F] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-lg text-xs text-white text-center font-bold focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Límite de Operadores Asignados */}
+                    <div className="pt-2 flex items-center justify-between p-3 rounded-xl bg-[#080C14] border border-[#141B29]">
+                      <div>
+                        <span className="text-xs font-bold text-white font-tech block">
+                          Límite Máximo de Operadores Permitidos
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-tech">
+                          Cantidad máxima de operadores que este administrador podrá crear
+                        </span>
+                      </div>
+                      <div className="w-24">
+                        <input
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={formData.maxOperators}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              maxOperators: Math.max(1, parseInt(e.target.value, 10) || 1),
                             })
                           }
                           className="w-full px-2.5 py-1.5 bg-[#05080F] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-lg text-xs text-white text-center font-bold focus:outline-none"

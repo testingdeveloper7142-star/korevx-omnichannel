@@ -237,9 +237,13 @@ export const TicketsView: React.FC<TicketsViewProps> = ({ availableAgents = [] }
         ) : filteredTickets.length === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-center p-6 rounded-2xl bg-[#05080F] border border-[#111726] text-slate-400 text-xs">
             <i className="fa-regular fa-folder-open text-3xl text-slate-600 mb-3"></i>
-            <p className="font-semibold text-slate-300">No hay tickets en esta categoría</p>
-            <p className="text-slate-500 mt-1 max-w-sm">
-              Puedes crear un nuevo ticket haciendo clic en el botón superior "Crear Ticket".
+            <p className="font-semibold text-slate-300 font-tech">
+              {isAgent ? 'No has generado tickets de asistencia aún' : 'No hay tickets generados por tus operadores'}
+            </p>
+            <p className="text-slate-500 mt-1 max-w-sm font-tech">
+              {isAgent
+                ? 'Cuando necesites asistencia o escalamiento hacia un supervisor, puedes generar un ticket.'
+                : 'Aquí se mostrarán las solicitudes de asistencia, aprobaciones y escalamientos creados por tu equipo de operadores en tiempo real.'}
             </p>
           </div>
         ) : (

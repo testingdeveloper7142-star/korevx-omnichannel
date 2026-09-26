@@ -30,6 +30,28 @@ export const CompanySettingsDashboard: React.FC<CompanySettingsDashboardProps> =
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [imageLoadError, setImageLoadError] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 4 * 1024 * 1024) {
+      alert('La imagen seleccionada es mayor a 4 MB. Por favor elige una imagen más liviana.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        setLogoUrl(result);
+        setImageLoadError(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Cuotas de redes sociales y operadores asignadas por Super Admin (informativo)
   const [channelLimits, setChannelLimits] = useState({ FACEBOOK: 2, INSTAGRAM: 1, WHATSAPP: 1, TIKTOK: 0 });
@@ -147,6 +169,12 @@ export const CompanySettingsDashboard: React.FC<CompanySettingsDashboardProps> =
           onUpdateWorkspaceName(trimmedName);
         }
       }
+
+      window.dispatchEvent(
+        new CustomEvent('korevx_company_profile_updated', {
+          detail: { name: trimmedName, logoUrl: logoUrl.trim() },
+        })
+      );
 
       soundManager.playSuccess();
       setSaveSuccess(true);
@@ -293,39 +321,90 @@ export const CompanySettingsDashboard: React.FC<CompanySettingsDashboardProps> =
             </div>
           </div>
 
-          {/* Logo con Previsualización en Vivo */}
-          <div className="pt-2 border-t border-[#111726]">
-            <label className="text-[11px] font-bold text-slate-400 uppercase font-tech block mb-1.5">
-              URL del Logo Corporativo (Opcional)
-            </label>
+          {/* Logo con Subida de Archivo y Previsualización en Vivo */}
+          <div className="pt-3 border-t border-[#111726] space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-bold text-slate-400 uppercase font-tech block">
+                Logo Corporativo de la Empresa
+              </label>
+              {logoUrl && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLogoUrl('');
+                    setImageLoadError(false);
+                  }}
+                  className="text-[11px] text-rose-400 hover:text-rose-300 font-tech flex items-center gap-1 transition"
+                  title="Eliminar logo actual"
+                >
+                  <i className="fa-solid fa-trash-can text-[10px]"></i>
+                  <span>Quitar logo</span>
+                </button>
+              )}
+            </div>
+
             <div className="flex flex-col sm:flex-row items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-[#080C14] border border-[#141B29] flex items-center justify-center overflow-hidden flex-shrink-0 relative group">
-                {logoUrl.trim() ? (
+              <div className="w-20 h-20 rounded-2xl bg-[#080C14] border-2 border-dashed border-[#1E293B] flex items-center justify-center overflow-hidden flex-shrink-0 relative group shadow-md shadow-black/50">
+                {logoUrl.trim() && !imageLoadError ? (
                   <img
                     src={logoUrl}
                     alt="Logo Empresa"
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-contain p-1.5"
+                    onError={() => setImageLoadError(true)}
+                    onLoad={() => setImageLoadError(false)}
                   />
                 ) : (
-                  <span className="text-xl font-bold font-tech text-[#00F0FF]">
-                    {companyName.slice(0, 2).toUpperCase()}
-                  </span>
+                  <div className="text-center p-1">
+                    <span className="text-2xl font-bold font-tech text-[#00F0FF]">
+                      {companyName.slice(0, 2).toUpperCase()}
+                    </span>
+                    <span className="block text-[8px] text-slate-500 font-tech mt-0.5">Sin logo</span>
+                  </div>
                 )}
               </div>
 
-              <div className="flex-1 w-full space-y-1.5">
+              <div className="flex-1 w-full space-y-2.5">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/png, image/jpeg, image/jpg, image/webp, image/svg+xml"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#00F0FF]/20 to-[#0072FF]/20 hover:from-[#00F0FF]/30 hover:to-[#0072FF]/30 border border-[#00F0FF]/50 text-[#00F0FF] text-xs font-bold font-tech flex items-center gap-2 shadow-sm transition"
+                  >
+                    <i className="fa-solid fa-cloud-arrow-up text-xs"></i>
+                    <span>Subir Imagen desde mi Dispositivo</span>
+                  </button>
+                  <span className="text-[11px] text-slate-400 font-tech">o escribe una URL web:</span>
+                </div>
+
                 <input
                   type="url"
-                  value={logoUrl}
-                  onChange={(e) => setLogoUrl(e.target.value)}
-                  placeholder="https://tudominio.com/logo.png"
-                  className="w-full bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none transition font-tech"
+                  value={logoUrl.startsWith('data:') ? '' : logoUrl}
+                  onChange={(e) => {
+                    setLogoUrl(e.target.value);
+                    setImageLoadError(false);
+                  }}
+                  placeholder={logoUrl.startsWith('data:') ? '✓ Imagen local cargada exitosamente (Base64)' : 'https://tudominio.com/logo.png'}
+                  className="w-full bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none transition font-tech"
                 />
+
+                {imageLoadError && (
+                  <p className="text-[11px] text-amber-400 font-tech flex items-center gap-1.5 bg-amber-950/20 p-2 rounded-lg border border-amber-500/30">
+                    <i className="fa-solid fa-triangle-exclamation text-xs"></i>
+                    <span>No se pudo cargar la imagen desde esa URL externa. Haz clic en "Subir Imagen desde mi Dispositivo" para cargar el archivo directamente desde tu equipo.</span>
+                  </p>
+                )}
+
                 <p className="text-[10px] text-slate-500 font-tech">
-                  Puedes ingresar la URL de una imagen PNG o SVG transparente. Si está vacío, se mostrará el monograma de {companyName}.
+                  Formatos recomendados: PNG, SVG transparente o JPG. Tamaño máximo 4 MB.
                 </p>
               </div>
             </div>
