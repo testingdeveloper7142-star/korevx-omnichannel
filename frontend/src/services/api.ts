@@ -38,9 +38,18 @@ export const api = {
     }
   },
 
-  async updateConversationStatus(id: string, status: ConversationStatus, assignedUserId?: string): Promise<Conversation | null> {
+  async updateConversationStatus(
+    id: string,
+    status: ConversationStatus,
+    assignedUserId?: string,
+    performedById?: string,
+  ): Promise<Conversation | null> {
     try {
-      const res = await axios.patch(`${getBaseUrl()}/conversations/${id}/status`, { status, assignedUserId });
+      const res = await axios.patch(`${getBaseUrl()}/conversations/${id}/status`, {
+        status,
+        assignedUserId,
+        performedById,
+      });
       return res.data;
     } catch {
       return null;

@@ -99,4 +99,36 @@ export class AuditController {
       rowCount: body.rowCount,
     });
   }
+
+  @Post('log-event')
+  @ApiOperation({ summary: 'Registrar evento general de trazabilidad y auditoría (Ley 1581)' })
+  async recordLogEvent(
+    @Req() req: Request,
+    @Body()
+    body: {
+      workspaceId?: string;
+      userId?: string;
+      action?: AuditAction;
+      resource?: AuditResource;
+      resourceId?: string;
+      description: string;
+      details?: any;
+    },
+  ) {
+    const rawIp = req.headers['x-forwarded-for'] as string;
+    const ipAddress = rawIp ? rawIp.split(',')[0].trim() : req.socket.remoteAddress || '127.0.0.1';
+    const userAgent = (req.headers['user-agent'] as string) || 'KorevX Web Client';
+
+    return this.auditService.recordAudit({
+      workspaceId: body.workspaceId || '00000000-0000-0000-0000-000000000000',
+      userId: body.userId,
+      action: body.action || AuditAction.UPDATE,
+      resource: body.resource || AuditResource.CONVERSATION,
+      resourceId: body.resourceId || 'GENERAL',
+      description: body.description,
+      newState: body.details,
+      ipAddress,
+      userAgent,
+    });
+  }
 }

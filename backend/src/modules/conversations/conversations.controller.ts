@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Patch, Param, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Query, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Request } from 'express';
 import { ConversationsService } from './conversations.service';
 import { ConversationStatus, PlatformType, InteractionType } from '@prisma/client';
 
@@ -38,9 +39,20 @@ export class ConversationsController {
   @ApiOperation({ summary: 'Actualizar estado de conversación (PENDING, ASSIGNED, RESOLVED)' })
   async updateStatus(
     @Param('id') id: string,
-    @Body() dto: { status: ConversationStatus; assignedUserId?: string },
+    @Body() dto: { status: ConversationStatus; assignedUserId?: string; performedById?: string },
+    @Req() req: Request,
   ) {
-    return this.conversationsService.updateConversationStatus(id, dto.status, dto.assignedUserId);
+    const rawIp = req.headers['x-forwarded-for'] as string;
+    const ipAddress = rawIp ? rawIp.split(',')[0].trim() : req.socket.remoteAddress || '127.0.0.1';
+    const userAgent = (req.headers['user-agent'] as string) || 'KorevX Web Client';
+    return this.conversationsService.updateConversationStatus(
+      id,
+      dto.status,
+      dto.assignedUserId,
+      dto.performedById,
+      ipAddress,
+      userAgent,
+    );
   }
 
   @Post(':id/reply')

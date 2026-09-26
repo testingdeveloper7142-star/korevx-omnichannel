@@ -495,6 +495,48 @@ function AppContent({ user }: { user: AuthUser }) {
       severity,
     };
     setAuditLogs((prev) => [newEntry, ...prev]);
+
+    // Persistir también en backend en la bitácora AuditLog inmutable con firma SHA-256 (Ley 1581)
+    try {
+      const auditAction =
+        action === 'USER_LOGIN'
+          ? 'LOGIN'
+          : action === 'USER_LOGOUT'
+          ? 'LOGOUT'
+          : action === 'CHANNEL_CREATED'
+          ? 'CREATE'
+          : action === 'CHANNEL_DELETED'
+          ? 'DELETE'
+          : action === 'CONVERSATION_ASSIGNED'
+          ? 'ASSIGNMENT'
+          : action === 'CONVERSATION_RESOLVED'
+          ? 'STATUS_CHANGE'
+          : 'UPDATE';
+
+      const auditResource = action.startsWith('CHANNEL')
+        ? 'CHANNEL'
+        : action.startsWith('CONVERSATION')
+        ? 'CONVERSATION'
+        : action.startsWith('USER')
+        ? 'AUTH'
+        : 'SETTINGS';
+
+      axios
+        .post('/api/v1/audit/log-event', {
+          workspaceId,
+          userId: user?.id,
+          action: auditAction,
+          resource: auditResource,
+          resourceId: newEntry.id,
+          description: `[${newEntry.actorRole}: ${newEntry.actorName}] ${details}`,
+          details: {
+            actionType: action,
+            severity,
+            actorRole: newEntry.actorRole,
+          },
+        })
+        .catch(() => {});
+    } catch {}
   };
 
   const lastTrackedUserIdRef = useRef<string | null>(user?.id || null);
@@ -1567,6 +1609,10 @@ function AppContent({ user }: { user: AuthUser }) {
       agentName,
       agentId: user?.id,
     });
+
+    try {
+      api.updateConversationStatus(conversationId, 'COLLABORATING', conv?.assignedUserId, user?.id);
+    } catch {}
   };
 
   const handleEndCollaboration = (conversationId: string) => {
@@ -1600,6 +1646,10 @@ function AppContent({ user }: { user: AuthUser }) {
       endedByName: user?.fullName || 'Usuario',
       endedById: user?.id,
     });
+
+    try {
+      api.updateConversationStatus(conversationId, nextStatus, conv?.assignedUserId, user?.id);
+    } catch {}
   };
 
   return (
