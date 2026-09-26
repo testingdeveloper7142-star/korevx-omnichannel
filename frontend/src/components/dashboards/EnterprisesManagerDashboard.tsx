@@ -123,11 +123,28 @@ export const EnterprisesManagerDashboard: React.FC = () => {
           } catch {}
 
           const effectiveLimits = item.channelLimits || savedLimits;
-          const effectiveMaxOps = item.maxOperators || Number(localStorage.getItem(`korevx_max_operators_${item.id}`)) || 5;
+
+          let savedMaxOps = 5;
+          try {
+            const m = localStorage.getItem(`korevx_max_operators_${item.id}`);
+            if (m) savedMaxOps = parseInt(m, 10);
+          } catch {}
+          const effectiveMaxOps = item.maxOperators !== undefined ? item.maxOperators : savedMaxOps;
+          // Recuperar canales locales si existen
+          let activeChannels = Array.isArray(item.activeChannels) ? item.activeChannels : [];
+          try {
+            const chanStr = localStorage.getItem(`korevx_channels_${item.id}`);
+            if (chanStr) {
+              const chList = JSON.parse(chanStr);
+              if (Array.isArray(chList)) {
+                activeChannels = Array.from(new Set([...activeChannels, ...chList.map((c: any) => c.platform)]));
+              }
+            }
+          } catch {}
 
           return {
             ...item,
-            activeChannels: Array.isArray(item.activeChannels) ? item.activeChannels : [],
+            activeChannels,
             channelLimits: effectiveLimits,
             maxOperators: effectiveMaxOps,
             adminId: item.adminId || matchAdmin?.id,
@@ -136,9 +153,22 @@ export const EnterprisesManagerDashboard: React.FC = () => {
           };
         });
 
-        setEnterprises(mapped);
+        // Combinar con empresas creadas localmente para no perderlas entre pestañas
+        let merged = mapped;
         try {
-          localStorage.setItem('korevx_custom_enterprises', JSON.stringify(mapped));
+          const savedEntsStr = localStorage.getItem('korevx_custom_enterprises');
+          if (savedEntsStr) {
+            const existingLocal = JSON.parse(savedEntsStr);
+            if (Array.isArray(existingLocal)) {
+              const localOnly = existingLocal.filter((le: any) => !mapped.some((me) => me.id === le.id));
+              merged = [...mapped, ...localOnly];
+            }
+          }
+        } catch {}
+
+        setEnterprises(merged);
+        try {
+          localStorage.setItem('korevx_custom_enterprises', JSON.stringify(merged));
         } catch {}
       }
     } catch (err) {
@@ -681,7 +711,18 @@ export const EnterprisesManagerDashboard: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((ent) => {
-            const channelCount = Array.isArray(ent.activeChannels) ? ent.activeChannels.length : 0;
+            const localChannelsStr = localStorage.getItem(`korevx_channels_${ent.id}`);
+            let localChanCount = 0;
+            if (localChannelsStr) {
+              try {
+                const parsed = JSON.parse(localChannelsStr);
+                if (Array.isArray(parsed)) localChanCount = parsed.length;
+              } catch {}
+            }
+            const channelCount = Math.max(
+              Array.isArray(ent.activeChannels) ? ent.activeChannels.length : 0,
+              localChanCount
+            );
             const limits = ent.channelLimits || { FACEBOOK: 2, INSTAGRAM: 1, WHATSAPP: 1, TIKTOK: 0 };
 
             return (

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
 import { AuthProvider, useAuth, AuthUser } from './context/AuthContext';
 import { Header, MainViewType } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -130,6 +131,20 @@ function AppContent({ user }: { user: AuthUser }) {
   });
 
   useEffect(() => {
+    if (workspaceId) {
+      axios
+        .get('/api/v1/channels', { params: { workspaceId } })
+        .then((res) => {
+          if (Array.isArray(res.data) && res.data.length > 0) {
+            setChannels(res.data);
+            localStorage.setItem(`korevx_channels_${workspaceId}`, JSON.stringify(res.data));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [workspaceId]);
+
+  useEffect(() => {
     if (Array.isArray(channels)) {
       localStorage.setItem(`korevx_channels_${workspaceId}`, JSON.stringify(channels));
       if (isDefaultWorkspace) {
@@ -154,21 +169,49 @@ function AppContent({ user }: { user: AuthUser }) {
   }, [auditRequests, workspaceId]);
 
   // Cuotas de redes sociales asignadas a este workspace
-  const currentEnterpriseLimits = (() => {
+  const [enterpriseLimits, setEnterpriseLimits] = useState(() => {
     try {
       const saved = localStorage.getItem(`korevx_channel_limits_${workspaceId}`);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && (parsed.FACEBOOK > 0 || parsed.INSTAGRAM > 0 || parsed.WHATSAPP > 0)) {
+          return parsed;
+        }
+      }
     } catch {}
     try {
       const allEnts = localStorage.getItem('korevx_custom_enterprises');
       if (allEnts) {
         const list = JSON.parse(allEnts);
         const match = list.find((e: any) => e.id === workspaceId);
-        if (match && match.channelLimits) return match.channelLimits;
+        if (match && match.channelLimits) {
+          if (match.channelLimits.FACEBOOK > 0 || match.channelLimits.INSTAGRAM > 0 || match.channelLimits.WHATSAPP > 0) {
+            return match.channelLimits;
+          }
+        }
       }
     } catch {}
     return { FACEBOOK: 2, INSTAGRAM: 1, WHATSAPP: 1, TIKTOK: 0 };
-  })();
+  });
+
+  useEffect(() => {
+    if (workspaceId) {
+      axios
+        .get('/api/v1/enterprises')
+        .then((res) => {
+          if (Array.isArray(res.data)) {
+            const match = res.data.find((e: any) => e.id === workspaceId);
+            if (match && match.channelLimits) {
+              setEnterpriseLimits(match.channelLimits);
+              localStorage.setItem(`korevx_channel_limits_${workspaceId}`, JSON.stringify(match.channelLimits));
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [workspaceId]);
+
+  const currentEnterpriseLimits = enterpriseLimits;
 
   // Límite máximo de operadores asignado a este workspace por Super Admin
   const currentEnterpriseMaxOperators = (() => {

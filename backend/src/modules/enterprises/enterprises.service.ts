@@ -209,8 +209,8 @@ export class EnterprisesService {
         },
         auditLogs: {
           where: { resource: { in: [AuditResource.SETTINGS, AuditResource.USER] } },
-          orderBy: { createdAt: 'desc' },
-          take: 5,
+          orderBy: { createdAt: 'asc' },
+          take: 50,
         },
         _count: {
           select: {
@@ -228,7 +228,7 @@ export class EnterprisesService {
       const admin = ws.users.find((u) => u.role === UserRole.ADMIN) || ws.users[0];
       const channelsList = Array.from(new Set(ws.channels.map((c) => c.platform)));
 
-      // Extraer metadatos persistidos en el log de creación
+      // Extraer metadatos persistidos en el log de creación y sucesivas actualizaciones en orden cronológico
       let industry = ws.id === 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc' ? 'Software & Telecomunicaciones' : 'Comercio & Servicios';
       let plan: 'Enterprise' | 'Business Pro' | 'Starter' = ws.id === 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc' ? 'Enterprise' : (ws.users.length > 5 ? 'Enterprise' : 'Business Pro');
       let quotaLimit = 50000;
@@ -244,10 +244,16 @@ export class EnterprisesService {
           if (state.industry) industry = state.industry;
           if (state.plan) plan = state.plan;
           if (state.quotaLimit) quotaLimit = Number(state.quotaLimit) || 50000;
-          if (state.maxOperators) maxOperators = Number(state.maxOperators) || 5;
+          if (typeof state.maxOperators === 'number') maxOperators = state.maxOperators;
           if (state.location) location = state.location;
-          if (state.channelLimits) channelLimits = { ...channelLimits, ...state.channelLimits };
-          break;
+          if (state.channelLimits) {
+            channelLimits = {
+              FACEBOOK: typeof state.channelLimits.FACEBOOK === 'number' ? state.channelLimits.FACEBOOK : channelLimits.FACEBOOK,
+              INSTAGRAM: typeof state.channelLimits.INSTAGRAM === 'number' ? state.channelLimits.INSTAGRAM : channelLimits.INSTAGRAM,
+              WHATSAPP: typeof state.channelLimits.WHATSAPP === 'number' ? state.channelLimits.WHATSAPP : channelLimits.WHATSAPP,
+              TIKTOK: typeof state.channelLimits.TIKTOK === 'number' ? state.channelLimits.TIKTOK : channelLimits.TIKTOK,
+            };
+          }
         }
       }
 

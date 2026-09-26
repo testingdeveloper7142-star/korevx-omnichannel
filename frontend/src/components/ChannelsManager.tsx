@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
+import axios from 'axios';
 import { ChannelAccount, PlatformType, InteractionType } from '../types';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 interface ChannelsManagerProps {
   channels: ChannelAccount[];
@@ -25,6 +27,7 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
   onAddChannel,
   onDeleteChannel,
 }) => {
+  const { user } = useAuth();
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulatedPlatform, setSimulatedPlatform] = useState<PlatformType>('INSTAGRAM');
   const [simulatedType, setSimulatedType] = useState<InteractionType>('DIRECT_MESSAGE');
@@ -32,11 +35,11 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
   const [simulatedContent, setSimulatedContent] = useState('¡Hola KorevX! Me interesa integrar su software para mi negocio.');
   const [simSuccess, setSimSuccess] = useState(false);
 
-  // Cuotas efectivas asignadas por el Super Admin
+  // Cuotas efectivas asignadas por el Super Admin (Gobernanza)
   const effectiveLimits = {
-    FACEBOOK: typeof channelLimits?.FACEBOOK === 'number' ? channelLimits.FACEBOOK : 2,
-    INSTAGRAM: typeof channelLimits?.INSTAGRAM === 'number' ? channelLimits.INSTAGRAM : 1,
-    WHATSAPP: typeof channelLimits?.WHATSAPP === 'number' ? channelLimits.WHATSAPP : 1,
+    FACEBOOK: typeof channelLimits?.FACEBOOK === 'number' && channelLimits.FACEBOOK > 0 ? channelLimits.FACEBOOK : (channelLimits?.FACEBOOK === 0 ? 0 : 2),
+    INSTAGRAM: typeof channelLimits?.INSTAGRAM === 'number' && channelLimits.INSTAGRAM > 0 ? channelLimits.INSTAGRAM : (channelLimits?.INSTAGRAM === 0 ? 0 : 1),
+    WHATSAPP: typeof channelLimits?.WHATSAPP === 'number' && channelLimits.WHATSAPP > 0 ? channelLimits.WHATSAPP : (channelLimits?.WHATSAPP === 0 ? 0 : 1),
     TIKTOK: typeof channelLimits?.TIKTOK === 'number' ? channelLimits.TIKTOK : 0,
   };
 
@@ -95,15 +98,29 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
       return;
     }
 
+    const effWorkspaceId = user?.workspaceId || 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc';
+    const channelId = `chan-${newPlatform.toLowerCase()}-${Date.now()}`;
+    const cleanHandle = newAccountHandle.trim() || `@${newAccountName.toLowerCase().replace(/\s+/g, '')}`;
+
     const createdChannel: ChannelAccount = {
-      id: `chan-${newPlatform.toLowerCase()}-${Date.now()}`,
-      workspaceId: 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc',
+      id: channelId,
+      workspaceId: effWorkspaceId,
       platform: newPlatform,
       accountName: newAccountName.trim(),
-      accountHandle: newAccountHandle.trim() || `@${newAccountName.toLowerCase().replace(/\s+/g, '')}`,
+      accountHandle: cleanHandle,
       isActive: true,
       connectedAt: new Date().toISOString(),
     };
+
+    // 1. Persistir en backend si está disponible
+    axios.post('/api/v1/channels', {
+      workspaceId: effWorkspaceId,
+      platform: newPlatform,
+      accountName: newAccountName.trim(),
+      accountHandle: cleanHandle,
+    }).catch(() => {
+      console.warn('Backend channels post offline, conservando canal localmente');
+    });
 
     if (onAddChannel) {
       onAddChannel(createdChannel);
