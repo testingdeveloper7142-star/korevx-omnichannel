@@ -54,37 +54,37 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('audit:request')
   handleAuditRequest(@ConnectedSocket() client: Socket, @MessageBody() data: any) {
     this.logger.log(`Solicitud de auditoría recibida en WebSocket para conversación ${data?.conversationId}`);
-    this.server.emit('audit:request', data);
+    client.broadcast.emit('audit:request', data);
   }
 
   @SubscribeMessage('audit:response')
   handleAuditResponse(@ConnectedSocket() client: Socket, @MessageBody() data: any) {
     this.logger.log(`Respuesta de auditoría recibida en WebSocket: ${data?.accepted ? 'Aprobada' : 'Rechazada'}`);
-    this.server.emit('audit:response', data);
+    client.broadcast.emit('audit:response', data);
   }
 
   @SubscribeMessage('conversation:share')
   handleConversationShare(@ConnectedSocket() client: Socket, @MessageBody() data: any) {
     this.logger.log(`Conversación ${data?.conversationId} compartida con supervisión`);
-    this.server.emit('conversation:share', data);
+    client.broadcast.emit('conversation:share', data);
   }
 
   @SubscribeMessage('conversation:assign')
   handleConversationAssign(@ConnectedSocket() client: Socket, @MessageBody() data: any) {
     this.logger.log(`Conversación ${data?.conversationId} asignada al agente ${data?.assignedAgentName}`);
-    this.server.emit('conversation:assign', data);
+    client.broadcast.emit('conversation:assign', data);
   }
 
   @SubscribeMessage('audit:mode')
   handleAuditMode(@ConnectedSocket() client: Socket, @MessageBody() data: any) {
     this.logger.log(`Modo Auditoría cambiado: ${data?.active ? 'Activado' : 'Desactivado'} por ${data?.activatedByName}`);
-    this.server.emit('audit:mode', data);
+    client.broadcast.emit('audit:mode', data);
   }
 
   @SubscribeMessage('conversation:resolved')
   handleConversationResolved(@ConnectedSocket() client: Socket, @MessageBody() data: any) {
     this.logger.log(`Conversación ${data?.conversationId} marcada como resuelta por ${data?.agentName}`);
-    this.server.emit('conversation:resolved', data);
+    client.broadcast.emit('conversation:resolved', data);
   }
 
   @SubscribeMessage('channel:get_sync')
@@ -102,7 +102,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         this.sharedChannels[idx] = newChannel;
       }
       this.logger.log(`Canal creado/vinculado: ${newChannel.accountName} (${newChannel.platform})`);
-      this.server.emit('channel:created', newChannel);
+      client.broadcast.emit('channel:created', newChannel);
       this.server.emit('channel:sync', this.sharedChannels);
     }
   }
@@ -113,7 +113,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (chan) {
       chan.isActive = data.isActive;
       this.logger.log(`Canal ${chan.accountName} cambiado de estado a ${data.isActive ? 'Activo' : 'Pausado'}`);
-      this.server.emit('channel:toggled', data);
+      client.broadcast.emit('channel:toggled', data);
       this.server.emit('channel:sync', this.sharedChannels);
     }
   }
@@ -122,7 +122,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleChannelDelete(@ConnectedSocket() client: Socket, @MessageBody() data: { channelId: string }) {
     this.sharedChannels = this.sharedChannels.filter((c) => c.id !== data.channelId);
     this.logger.log(`Canal eliminado: ${data.channelId}`);
-    this.server.emit('channel:deleted', data);
+    client.broadcast.emit('channel:deleted', data);
     this.server.emit('channel:sync', this.sharedChannels);
   }
 
@@ -141,7 +141,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         this.sharedTemplates[idx] = template;
       }
       this.logger.log(`Plantilla creada: ${template.shortcut} - ${template.title}`);
-      this.server.emit('template:created', template);
+      client.broadcast.emit('template:created', template);
       this.server.emit('template:sync', this.sharedTemplates);
     }
   }
@@ -150,26 +150,20 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleTemplateDelete(@ConnectedSocket() client: Socket, @MessageBody() data: { templateId: string }) {
     this.sharedTemplates = this.sharedTemplates.filter((t) => t.id !== data.templateId);
     this.logger.log(`Plantilla eliminada: ${data.templateId}`);
-    this.server.emit('template:deleted', data);
+    client.broadcast.emit('template:deleted', data);
     this.server.emit('template:sync', this.sharedTemplates);
   }
 
   @SubscribeMessage('ticket:create')
   handleTicketCreate(@ConnectedSocket() client: Socket, @MessageBody() data: any) {
     this.logger.log(`Nuevo ticket emitido vía WebSocket: #${data?.ticketNumber} (${data?.title})`);
-    this.server.emit('ticket:created', data);
-    if (data?.workspaceId) {
-      this.server.to(`workspace:${data.workspaceId}`).emit('ticket:created', data);
-    }
+    client.broadcast.emit('ticket:created', data);
   }
 
   @SubscribeMessage('ticket:update')
   handleTicketUpdate(@ConnectedSocket() client: Socket, @MessageBody() data: any) {
     this.logger.log(`Ticket actualizado vía WebSocket: #${data?.ticketNumber} (${data?.status})`);
-    this.server.emit('ticket:updated', data);
-    if (data?.workspaceId) {
-      this.server.to(`workspace:${data.workspaceId}`).emit('ticket:updated', data);
-    }
+    client.broadcast.emit('ticket:updated', data);
   }
 
   /**
@@ -177,12 +171,10 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
    */
   emitNewMessage(workspaceId: string, payload: any) {
     if (this.server) {
-      this.server.emit('message:new', payload);
       if (workspaceId) {
         this.server.to(`workspace:${workspaceId}`).emit('message:new', payload);
-      }
-      if (payload?.conversationId) {
-        this.server.to(`conversation:${payload.conversationId}`).emit('message:new', payload);
+      } else {
+        this.server.emit('message:new', payload);
       }
     }
   }
@@ -192,12 +184,10 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
    */
   emitConversationUpdated(workspaceId: string, payload: any) {
     if (this.server) {
-      this.server.emit('conversation:updated', payload);
       if (workspaceId) {
         this.server.to(`workspace:${workspaceId}`).emit('conversation:updated', payload);
-      }
-      if (payload?.id) {
-        this.server.to(`conversation:${payload.id}`).emit('conversation:updated', payload);
+      } else {
+        this.server.emit('conversation:updated', payload);
       }
     }
   }

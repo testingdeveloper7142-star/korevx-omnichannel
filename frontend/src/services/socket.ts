@@ -31,28 +31,28 @@ class WebSocketService {
   }
 
   // Auditoría Interna en Tiempo Real
-  emitAuditRequest(payload: { conversationId: string; clientName: string; requestedByName: string; assignedAgentId?: string }) {
+  emitAuditRequest(payload: { conversationId: string; clientName: string; requestedByName: string; assignedAgentId?: string; requestedById?: string }) {
     this.socket?.emit('audit:request', payload);
   }
 
-  onAuditRequest(callback: (data: { conversationId: string; clientName: string; requestedByName: string; assignedAgentId?: string }) => void) {
+  onAuditRequest(callback: (data: { conversationId: string; clientName: string; requestedByName: string; assignedAgentId?: string; requestedById?: string }) => void) {
     this.socket?.on('audit:request', callback);
   }
 
-  emitAuditResponse(payload: { conversationId: string; accepted: boolean; agentName: string }) {
+  emitAuditResponse(payload: { conversationId: string; accepted: boolean; agentName: string; respondedById?: string }) {
     this.socket?.emit('audit:response', payload);
   }
 
-  onAuditResponse(callback: (data: { conversationId: string; accepted: boolean; agentName: string }) => void) {
+  onAuditResponse(callback: (data: { conversationId: string; accepted: boolean; agentName: string; respondedById?: string }) => void) {
     this.socket?.on('audit:response', callback);
   }
 
   // Compartir con Admin en Tiempo Real
-  emitConversationShare(payload: { conversationId: string; clientName: string; agentName: string }) {
+  emitConversationShare(payload: { conversationId: string; clientName: string; agentName: string; agentId?: string }) {
     this.socket?.emit('conversation:share', payload);
   }
 
-  onConversationShare(callback: (data: { conversationId: string; clientName: string; agentName: string }) => void) {
+  onConversationShare(callback: (data: { conversationId: string; clientName: string; agentName: string; agentId?: string }) => void) {
     this.socket?.on('conversation:share', callback);
   }
 
@@ -66,20 +66,20 @@ class WebSocketService {
   }
 
   // Modo Auditoría General en Tiempo Real
-  emitAuditMode(payload: { active: boolean; activatedByName: string; duration?: string }) {
+  emitAuditMode(payload: { active: boolean; activatedByName: string; duration?: string; activatedById?: string }) {
     this.socket?.emit('audit:mode', payload);
   }
 
-  onAuditMode(callback: (data: { active: boolean; activatedByName: string; duration?: string }) => void) {
+  onAuditMode(callback: (data: { active: boolean; activatedByName: string; duration?: string; activatedById?: string }) => void) {
     this.socket?.on('audit:mode', callback);
   }
 
   // Caso Resuelto en Tiempo Real
-  emitConversationResolved(payload: { conversationId: string; clientName: string; agentName: string }) {
+  emitConversationResolved(payload: { conversationId: string; clientName: string; agentName: string; resolvedById?: string }) {
     this.socket?.emit('conversation:resolved', payload);
   }
 
-  onConversationResolved(callback: (data: { conversationId: string; clientName: string; agentName: string }) => void) {
+  onConversationResolved(callback: (data: { conversationId: string; clientName: string; agentName: string; resolvedById?: string }) => void) {
     this.socket?.on('conversation:resolved', callback);
   }
 

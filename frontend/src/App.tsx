@@ -336,13 +336,61 @@ function AppContent({ user }: { user: AuthUser }) {
 
   // Referencias para evitar duplicar notificaciones en tiempo real emitidas por la propia sesión
   const localAssignedConvIdsRef = useRef<Map<string, number>>(new Map());
+  const localResolvedConvIdsRef = useRef<Map<string, number>>(new Map());
   const localCreatedChannelIdsRef = useRef<Set<string>>(new Set());
+  const localToggledChannelIdsRef = useRef<Map<string, number>>(new Map());
+  const localDeletedChannelIdsRef = useRef<Map<string, number>>(new Map());
+  const recentNotificationsRef = useRef<Map<string, number>>(new Map());
+  const processedTicketEventsRef = useRef<Set<string>>(new Set());
 
   const addNotification = (
     title: string,
     message: string,
     type: AppNotification['type'] = 'audit'
   ) => {
+    // 1. Normalizar título y mensaje para análisis semántico
+    const cleanTitle = title.replace(/[^\p{L}\p{N}\s]/gu, '').trim().toLowerCase();
+    const cleanMsg = message.trim().toLowerCase();
+    const now = Date.now();
+
+    // 2. Construir llaves de deduplicación exacta y semántica
+    const exactKey = `${cleanTitle}|${cleanMsg}`;
+    let semanticKey = exactKey;
+
+    if (cleanTitle.includes('asignad') || cleanMsg.includes('asignad')) {
+      const match = cleanMsg.match(/caso de ([^.]+)/);
+      semanticKey = `assignment-${match ? match[1].slice(0, 15) : cleanMsg.slice(0, 20)}`;
+    } else if (cleanTitle.includes('canal') || cleanMsg.includes('canal')) {
+      const match = cleanMsg.match(/canal "([^"]+)"/);
+      semanticKey = `channel-${match ? match[1] : cleanTitle.slice(0, 15)}`;
+    } else if (cleanTitle.includes('ticket') || cleanMsg.includes('ticket')) {
+      const match = cleanTitle.match(/ticket #?([0-9a-z-]+)/);
+      semanticKey = `ticket-${match ? match[1] : cleanTitle.slice(0, 15)}-${cleanMsg.slice(0, 20)}`;
+    } else if (cleanTitle.includes('auditor') || cleanMsg.includes('auditor')) {
+      semanticKey = `audit-${cleanTitle.slice(0, 15)}-${cleanMsg.slice(0, 20)}`;
+    } else if (cleanTitle.includes('resuelto') || cleanMsg.includes('resuelto')) {
+      semanticKey = `resolved-${cleanMsg.slice(0, 25)}`;
+    }
+
+    // 3. Comprobar ventana deslizante síncrona (6 segundos)
+    const lastExact = recentNotificationsRef.current.get(exactKey);
+    const lastSemantic = recentNotificationsRef.current.get(semanticKey);
+    if ((lastExact && now - lastExact < 6000) || (lastSemantic && now - lastSemantic < 6000)) {
+      return; // Deduplicación síncrona inmediata: no agrega toast, no emite sonido y no duplica el estado
+    }
+
+    recentNotificationsRef.current.set(exactKey, now);
+    recentNotificationsRef.current.set(semanticKey, now);
+
+    // Limpieza periódica de llaves antiguas para no sobrecargar memoria
+    if (recentNotificationsRef.current.size > 80) {
+      recentNotificationsRef.current.forEach((timestamp, key) => {
+        if (now - timestamp > 15000) {
+          recentNotificationsRef.current.delete(key);
+        }
+      });
+    }
+
     const newNotif: AppNotification = {
       id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       title,
@@ -352,25 +400,20 @@ function AppContent({ user }: { user: AuthUser }) {
       read: false,
     };
 
-    let isDuplicated = false;
     setNotifications((prev) => {
-      // Normalizar título (sin emojis ni caracteres decorativos)
-      const cleanTitle = title.replace(/[^\p{L}\p{N}\s]/gu, '').trim().toLowerCase();
-      const cleanMsg = message.trim().toLowerCase();
-
-      // Bloquear si en las últimas 12 notificaciones ya existe el mismo contenido o acción
-      const exists = prev.slice(0, 12).some((n) => {
+      // Bloquear si en las últimas 15 notificaciones ya existe el mismo contenido o acción
+      const exists = prev.slice(0, 15).some((n) => {
         const prevCleanTitle = n.title.replace(/[^\p{L}\p{N}\s]/gu, '').trim().toLowerCase();
         const prevCleanMsg = n.message.trim().toLowerCase();
 
-        // 1. Título y mensaje idénticos
+        // Título y mensaje idénticos
         if (cleanTitle === prevCleanTitle && cleanMsg === prevCleanMsg) return true;
 
-        // 2. Si el mensaje es idéntico o contiene el mismo fragmento esencial
+        // Si el mensaje es idéntico o contiene el mismo fragmento esencial
         if (cleanMsg === prevCleanMsg) return true;
         if (cleanMsg.length > 20 && prevCleanMsg.includes(cleanMsg.slice(0, 28))) return true;
 
-        // 3. Notificaciones redundantes de Asignación (ej: "Conversación Asignada" y "📥 Conversación Asignada")
+        // Notificaciones redundantes de Asignación (ej: "Conversación Asignada" y "📥 Conversación Asignada")
         if (
           cleanTitle.includes('asignad') && prevCleanTitle.includes('asignad') &&
           (cleanMsg.includes('caso de') && prevCleanMsg.includes('caso de') &&
@@ -379,7 +422,7 @@ function AppContent({ user }: { user: AuthUser }) {
           return true;
         }
 
-        // 4. Notificaciones redundantes de Canal (ej: "Nuevo Canal Conectado" y "Nuevo Canal Vinculado")
+        // Notificaciones redundantes de Canal (ej: "Nuevo Canal Conectado" y "Nuevo Canal Vinculado")
         if (
           cleanTitle.includes('canal') && prevCleanTitle.includes('canal') &&
           (cleanMsg.includes('canal "') && prevCleanMsg.includes('canal "') &&
@@ -388,17 +431,22 @@ function AppContent({ user }: { user: AuthUser }) {
           return true;
         }
 
+        // Notificaciones redundantes de Auditoría
+        if (
+          cleanTitle.includes('auditor') && prevCleanTitle.includes('auditor') &&
+          cleanMsg.slice(0, 25) === prevCleanMsg.slice(0, 25)
+        ) {
+          return true;
+        }
+
         return false;
       });
 
       if (exists) {
-        isDuplicated = true;
         return prev;
       }
       return [newNotif, ...prev];
     });
-
-    if (isDuplicated) return;
 
     // Agregar a toasts flotantes en vivo
     const toastItem: LiveToast = {
@@ -520,6 +568,7 @@ function AppContent({ user }: { user: AuthUser }) {
       clientName,
       requestedByName: user?.fullName || 'Laura Morales (Supervisora)',
       assignedAgentId: conv?.assignedUserId,
+      requestedById: user?.id,
     });
   };
 
@@ -558,6 +607,7 @@ function AppContent({ user }: { user: AuthUser }) {
       conversationId,
       accepted,
       agentName,
+      respondedById: user?.id,
     });
   };
 
@@ -577,6 +627,7 @@ function AppContent({ user }: { user: AuthUser }) {
   };
 
   const handleToggleChannelStatus = (channelId: string) => {
+    localToggledChannelIdsRef.current.set(channelId, Date.now());
     setChannels((prev) =>
       prev.map((ch) => {
         if (ch.id === channelId) {
@@ -621,6 +672,7 @@ function AppContent({ user }: { user: AuthUser }) {
     const chanName = targetChannel ? targetChannel.accountName : 'Canal';
     const chanPlat = targetChannel ? targetChannel.platform : 'RED_SOCIAL';
 
+    localDeletedChannelIdsRef.current.set(channelId, Date.now());
     setChannels((prev) => prev.filter((c) => c.id !== channelId));
     socketService.emitChannelDelete(channelId);
 
@@ -738,6 +790,10 @@ function AppContent({ user }: { user: AuthUser }) {
           requestedByName: data.requestedByName,
         },
       }));
+      // Solo notificar si el usuario actual es un OPERADOR asignado a este chat (nunca a supervisores ni al solicitante)
+      if (user?.role !== 'AGENT') return;
+      if (data.assignedAgentId && user?.id && data.assignedAgentId !== user.id) return;
+
       soundManager.playAuditAlert();
       addNotification(
         '🚨 Solicitud de Auditoría Interna',
@@ -755,6 +811,9 @@ function AppContent({ user }: { user: AuthUser }) {
           status: data.accepted ? 'ACCEPTED' : 'REJECTED',
         },
       }));
+
+      // No alertar a operadores ni a quien respondió
+      if (user?.role === 'AGENT' || (data.respondedById && user?.id && data.respondedById === user.id)) return;
 
       if (data.accepted) {
         soundManager.playSuccess();
@@ -785,6 +844,9 @@ function AppContent({ user }: { user: AuthUser }) {
           ? { ...current, status: 'COLLABORATING' }
           : current
       );
+
+      // Solo notificar a supervisores/admins y no al operador que lo compartió
+      if (user?.role === 'AGENT' || (data.agentId && user?.id && data.agentId === user.id)) return;
 
       soundManager.playAuditAlert();
       addNotification(
@@ -828,6 +890,7 @@ function AppContent({ user }: { user: AuthUser }) {
       const lastAssigned = localAssignedConvIdsRef.current.get(data.conversationId);
       const isSelfAction =
         (data.assignedById && user?.id && data.assignedById === user.id) ||
+        (data.assignedByName && user?.fullName && data.assignedByName === user.fullName) ||
         (lastAssigned && Date.now() - lastAssigned < 10000);
 
       if (!isSelfAction) {
@@ -849,6 +912,11 @@ function AppContent({ user }: { user: AuthUser }) {
     socketService.onAuditMode((data: any) => {
       setIsAuditModeActive(data.active);
       localStorage.setItem('korevx_audit_mode', String(data.active));
+
+      // Si el usuario es supervisor/admin o fue quien activó la auditoría, ya tiene su notificación local
+      if (user?.role !== 'AGENT' || (data.activatedById && user?.id && data.activatedById === user.id)) {
+        return;
+      }
 
       if (data.active) {
         soundManager.playAuditAlert();
@@ -890,17 +958,25 @@ function AppContent({ user }: { user: AuthUser }) {
           : current
       );
 
-      soundManager.playSuccess();
-      addNotification(
-        '✓ Caso Resuelto',
-        `La conversación de ${data.clientName} fue marcada como resuelta por ${data.agentName}.`,
-        'general'
-      );
-      logAuditEvent(
-        'CONVERSATION_RESOLVED',
-        `Conversación de ${data.clientName} cerrada y marcada como resuelta por ${data.agentName}.`,
-        'SUCCESS'
-      );
+      const lastResolved = localResolvedConvIdsRef.current.get(data.conversationId);
+      const isSelfAction =
+        (data.resolvedById && user?.id && data.resolvedById === user.id) ||
+        (data.agentName && user?.fullName && data.agentName === user.fullName) ||
+        (lastResolved && Date.now() - lastResolved < 10000);
+
+      if (!isSelfAction) {
+        soundManager.playSuccess();
+        addNotification(
+          '✓ Caso Resuelto',
+          `La conversación de ${data.clientName} fue marcada como resuelta por ${data.agentName}.`,
+          'general'
+        );
+        logAuditEvent(
+          'CONVERSATION_RESOLVED',
+          `Conversación de ${data.clientName} cerrada y marcada como resuelta por ${data.agentName}.`,
+          'SUCCESS'
+        );
+      }
     });
 
     // 7. Sincronización en tiempo real de Canales (entre ventanas normales e incógnito)
@@ -915,7 +991,8 @@ function AppContent({ user }: { user: AuthUser }) {
       if (!newChan.workspaceId || newChan.workspaceId === workspaceId) {
         if (
           localCreatedChannelIdsRef.current.has(newChan.id) ||
-          localCreatedChannelIdsRef.current.has(newChan.accountName.toLowerCase())
+          localCreatedChannelIdsRef.current.has(newChan.accountName.toLowerCase()) ||
+          ((newChan as any).createdById && user?.id && (newChan as any).createdById === user.id)
         ) {
           return; // Ya registrado y notificado por la acción local de esta misma sesión
         }
@@ -963,13 +1040,15 @@ function AppContent({ user }: { user: AuthUser }) {
     }, 5000);
 
     // 8. Eventos de Tickets en tiempo real (Notificaciones a Admin y Operador)
-    const processedEventsRef = new Set<string>();
-
     const handleIncomingTicketCreated = (data: any) => {
       const evtKey = `TICKET_CREATED_${data.ticketNumber || data.id || data.title}`;
-      if (processedEventsRef.has(evtKey)) return;
-      processedEventsRef.add(evtKey);
-      setTimeout(() => processedEventsRef.delete(evtKey), 8000);
+      if (processedTicketEventsRef.current.has(evtKey)) return;
+      processedTicketEventsRef.current.add(evtKey);
+      setTimeout(() => processedTicketEventsRef.current.delete(evtKey), 10000);
+
+      // Si el ticket fue creado por este mismo usuario, no notificar al propio creador
+      if (data.createdById && user?.id && data.createdById === user.id) return;
+      if (data.operatorName && user?.fullName && data.operatorName === user.fullName) return;
 
       if (user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') {
         if (!data.workspaceId || data.workspaceId === workspaceId) {
@@ -985,9 +1064,13 @@ function AppContent({ user }: { user: AuthUser }) {
 
     const handleIncomingTicketUpdated = (data: any) => {
       const evtKey = `TICKET_UPDATED_${data.ticketNumber || data.id}_${data.status}`;
-      if (processedEventsRef.has(evtKey)) return;
-      processedEventsRef.add(evtKey);
-      setTimeout(() => processedEventsRef.delete(evtKey), 8000);
+      if (processedTicketEventsRef.current.has(evtKey)) return;
+      processedTicketEventsRef.current.add(evtKey);
+      setTimeout(() => processedTicketEventsRef.current.delete(evtKey), 10000);
+
+      // Si fue actualizado por este mismo usuario, no auto-notificar
+      if (data.updatedById && user?.id && data.updatedById === user.id) return;
+      if (data.updatedByName && user?.fullName && data.updatedByName === user.fullName) return;
 
       const isTargetOperator = user?.id === data.createdById || user?.role === 'AGENT';
       if (isTargetOperator && (!data.workspaceId || data.workspaceId === workspaceId)) {
@@ -1136,6 +1219,7 @@ function AppContent({ user }: { user: AuthUser }) {
       socketService.emitAuditMode({
         active: true,
         activatedByName: user?.fullName || 'Laura Morales (Supervisora)',
+        activatedById: user?.id,
       });
     } else {
       let durationText = 'menos de 1 minuto';
@@ -1162,6 +1246,7 @@ function AppContent({ user }: { user: AuthUser }) {
         active: false,
         activatedByName: user?.fullName || 'Laura Morales (Supervisora)',
         duration: durationText,
+        activatedById: user?.id,
       });
     }
   };
@@ -1332,6 +1417,7 @@ function AppContent({ user }: { user: AuthUser }) {
     const clientName = activeConversation.contact.name;
     const convId = activeConversation.id;
 
+    localResolvedConvIdsRef.current.set(convId, Date.now());
     setActiveConversation(null);
     setConversations((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
     soundManager.playSuccess();
@@ -1347,6 +1433,7 @@ function AppContent({ user }: { user: AuthUser }) {
       conversationId: convId,
       clientName,
       agentName: user?.fullName || 'Operador',
+      resolvedById: user?.id,
     });
   };
 
@@ -1443,6 +1530,7 @@ function AppContent({ user }: { user: AuthUser }) {
       conversationId,
       clientName,
       agentName,
+      agentId: user?.id,
     });
   };
 
