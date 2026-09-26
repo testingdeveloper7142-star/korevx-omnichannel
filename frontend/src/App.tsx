@@ -299,7 +299,16 @@ function AppContent({ user }: { user: AuthUser }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          // Filtrar notificaciones duplicadas existentes por título y minuto
+          const seen = new Set<string>();
+          return parsed.filter((n) => {
+            const key = `${n.title}-${n.timestamp}-${(n.message || '').substring(0, 25)}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+        }
       } catch (e) {}
     }
     return user.role === 'SUPER_ADMIN' ? initialNotifications : [];
@@ -338,7 +347,21 @@ function AppContent({ user }: { user: AuthUser }) {
       type,
       read: false,
     };
-    setNotifications((prev) => [newNotif, ...prev]);
+
+    let isDuplicated = false;
+    setNotifications((prev) => {
+      // Bloquear si en las últimas 8 notificaciones ya existe el mismo título o mensaje
+      const exists = prev.slice(0, 8).some(
+        (n) => n.title === title && (n.message === message || n.message.includes(message.slice(0, 20)))
+      );
+      if (exists) {
+        isDuplicated = true;
+        return prev;
+      }
+      return [newNotif, ...prev];
+    });
+
+    if (isDuplicated) return;
 
     // Agregar a toasts flotantes en vivo
     const toastItem: LiveToast = {
@@ -347,7 +370,10 @@ function AppContent({ user }: { user: AuthUser }) {
       message,
       type,
     };
-    setToasts((prev) => [toastItem, ...prev.slice(0, 2)]);
+    setToasts((prev) => {
+      if (prev.some((t) => t.title === title || t.message === message)) return prev;
+      return [toastItem, ...prev.slice(0, 2)];
+    });
 
     // Reproducir efecto sonoro según la categoría
     if (type === 'audit') {
@@ -841,15 +867,18 @@ function AppContent({ user }: { user: AuthUser }) {
     socketService.onChannelCreated((newChan: ChannelAccount) => {
       if (!newChan.workspaceId || newChan.workspaceId === workspaceId) {
         setChannels((prev) => {
-          if (prev.some((c) => c.id === newChan.id)) return prev;
+          if (prev.some((c) => c.id === newChan.id || c.accountName.toLowerCase() === newChan.accountName.toLowerCase())) {
+            // Ya existe en la sesión local (creado localmente), no duplicar notificación
+            return prev;
+          }
+          soundManager.playNotification();
+          addNotification(
+            'Nuevo Canal Conectado',
+            `El canal "${newChan.accountName}" (${newChan.platform}) ha sido vinculado y sincronizado.`,
+            'channel'
+          );
           return [...prev, newChan];
         });
-        soundManager.playNotification();
-        addNotification(
-          'Nuevo Canal Conectado',
-          `El canal "${newChan.accountName}" (${newChan.platform}) ha sido vinculado y sincronizado.`,
-          'channel'
-        );
       }
     });
 
@@ -882,7 +911,14 @@ function AppContent({ user }: { user: AuthUser }) {
     }, 5000);
 
     // 8. Eventos de Tickets en tiempo real (Notificaciones a Admin y Operador)
+    const processedEventsRef = new Set<string>();
+
     const handleIncomingTicketCreated = (data: any) => {
+      const evtKey = `TICKET_CREATED_${data.ticketNumber || data.id || data.title}`;
+      if (processedEventsRef.has(evtKey)) return;
+      processedEventsRef.add(evtKey);
+      setTimeout(() => processedEventsRef.delete(evtKey), 8000);
+
       if (user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') {
         if (!data.workspaceId || data.workspaceId === workspaceId) {
           soundManager.playNotification();
@@ -896,6 +932,11 @@ function AppContent({ user }: { user: AuthUser }) {
     };
 
     const handleIncomingTicketUpdated = (data: any) => {
+      const evtKey = `TICKET_UPDATED_${data.ticketNumber || data.id}_${data.status}`;
+      if (processedEventsRef.has(evtKey)) return;
+      processedEventsRef.add(evtKey);
+      setTimeout(() => processedEventsRef.delete(evtKey), 8000);
+
       const isTargetOperator = user?.id === data.createdById || user?.role === 'AGENT';
       if (isTargetOperator && (!data.workspaceId || data.workspaceId === workspaceId)) {
         if (data.status === 'IN_REVIEW') {
