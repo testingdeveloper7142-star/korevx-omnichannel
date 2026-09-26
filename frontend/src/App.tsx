@@ -334,6 +334,10 @@ function AppContent({ user }: { user: AuthUser }) {
   }
   const [toasts, setToasts] = useState<LiveToast[]>([]);
 
+  // Referencias para evitar duplicar notificaciones en tiempo real emitidas por la propia sesión
+  const localAssignedConvIdsRef = useRef<Map<string, number>>(new Map());
+  const localCreatedChannelIdsRef = useRef<Set<string>>(new Set());
+
   const addNotification = (
     title: string,
     message: string,
@@ -350,10 +354,43 @@ function AppContent({ user }: { user: AuthUser }) {
 
     let isDuplicated = false;
     setNotifications((prev) => {
-      // Bloquear si en las últimas 8 notificaciones ya existe el mismo título o mensaje
-      const exists = prev.slice(0, 8).some(
-        (n) => n.title === title && (n.message === message || n.message.includes(message.slice(0, 20)))
-      );
+      // Normalizar título (sin emojis ni caracteres decorativos)
+      const cleanTitle = title.replace(/[^\p{L}\p{N}\s]/gu, '').trim().toLowerCase();
+      const cleanMsg = message.trim().toLowerCase();
+
+      // Bloquear si en las últimas 12 notificaciones ya existe el mismo contenido o acción
+      const exists = prev.slice(0, 12).some((n) => {
+        const prevCleanTitle = n.title.replace(/[^\p{L}\p{N}\s]/gu, '').trim().toLowerCase();
+        const prevCleanMsg = n.message.trim().toLowerCase();
+
+        // 1. Título y mensaje idénticos
+        if (cleanTitle === prevCleanTitle && cleanMsg === prevCleanMsg) return true;
+
+        // 2. Si el mensaje es idéntico o contiene el mismo fragmento esencial
+        if (cleanMsg === prevCleanMsg) return true;
+        if (cleanMsg.length > 20 && prevCleanMsg.includes(cleanMsg.slice(0, 28))) return true;
+
+        // 3. Notificaciones redundantes de Asignación (ej: "Conversación Asignada" y "📥 Conversación Asignada")
+        if (
+          cleanTitle.includes('asignad') && prevCleanTitle.includes('asignad') &&
+          (cleanMsg.includes('caso de') && prevCleanMsg.includes('caso de') &&
+            cleanMsg.split('caso de')[1]?.slice(0, 20) === prevCleanMsg.split('caso de')[1]?.slice(0, 20))
+        ) {
+          return true;
+        }
+
+        // 4. Notificaciones redundantes de Canal (ej: "Nuevo Canal Conectado" y "Nuevo Canal Vinculado")
+        if (
+          cleanTitle.includes('canal') && prevCleanTitle.includes('canal') &&
+          (cleanMsg.includes('canal "') && prevCleanMsg.includes('canal "') &&
+            cleanMsg.split('canal "')[1]?.slice(0, 20) === prevCleanMsg.split('canal "')[1]?.slice(0, 20))
+        ) {
+          return true;
+        }
+
+        return false;
+      });
+
       if (exists) {
         isDuplicated = true;
         return prev;
@@ -563,6 +600,8 @@ function AppContent({ user }: { user: AuthUser }) {
   };
 
   const handleAddChannel = (newChannel: ChannelAccount) => {
+    localCreatedChannelIdsRef.current.add(newChannel.id);
+    localCreatedChannelIdsRef.current.add(newChannel.accountName.toLowerCase());
     setChannels((prev) => [...prev, newChannel]);
     socketService.emitChannelCreate(newChannel);
     logAuditEvent(
@@ -785,17 +824,25 @@ function AppContent({ user }: { user: AuthUser }) {
           : current
       );
 
-      soundManager.playNotification();
-      addNotification(
-        '📥 Conversación Asignada',
-        `${data.assignedByName} asignó el caso de ${data.clientName} a ${data.assignedAgentName}.`,
-        'assignment'
-      );
-      logAuditEvent(
-        'CONVERSATION_ASSIGNED',
-        `Conversación de ${data.clientName} asignada a ${data.assignedAgentName} por ${data.assignedByName}.`,
-        'INFO'
-      );
+      // Si la asignación fue realizada por este mismo usuario o hace pocos segundos en esta sesión local, no duplicar
+      const lastAssigned = localAssignedConvIdsRef.current.get(data.conversationId);
+      const isSelfAction =
+        (data.assignedById && user?.id && data.assignedById === user.id) ||
+        (lastAssigned && Date.now() - lastAssigned < 10000);
+
+      if (!isSelfAction) {
+        soundManager.playNotification();
+        addNotification(
+          'Conversación Asignada',
+          `${data.assignedByName} asignó el caso de ${data.clientName} a ${data.assignedAgentName}.`,
+          'assignment'
+        );
+        logAuditEvent(
+          'CONVERSATION_ASSIGNED',
+          `Conversación de ${data.clientName} asignada a ${data.assignedAgentName} por ${data.assignedByName}.`,
+          'INFO'
+        );
+      }
     });
 
     // 5. Evento en tiempo real: Activación o Desactivación del Modo Auditoría General
@@ -866,19 +913,24 @@ function AppContent({ user }: { user: AuthUser }) {
 
     socketService.onChannelCreated((newChan: ChannelAccount) => {
       if (!newChan.workspaceId || newChan.workspaceId === workspaceId) {
+        if (
+          localCreatedChannelIdsRef.current.has(newChan.id) ||
+          localCreatedChannelIdsRef.current.has(newChan.accountName.toLowerCase())
+        ) {
+          return; // Ya registrado y notificado por la acción local de esta misma sesión
+        }
         setChannels((prev) => {
           if (prev.some((c) => c.id === newChan.id || c.accountName.toLowerCase() === newChan.accountName.toLowerCase())) {
-            // Ya existe en la sesión local (creado localmente), no duplicar notificación
             return prev;
           }
-          soundManager.playNotification();
-          addNotification(
-            'Nuevo Canal Conectado',
-            `El canal "${newChan.accountName}" (${newChan.platform}) ha sido vinculado y sincronizado.`,
-            'channel'
-          );
           return [...prev, newChan];
         });
+        soundManager.playNotification();
+        addNotification(
+          'Nuevo Canal Vinculado',
+          `El canal "${newChan.accountName}" (${newChan.platform}) ha sido vinculado y sincronizado.`,
+          'channel'
+        );
       }
     });
 
@@ -1343,13 +1395,15 @@ function AppContent({ user }: { user: AuthUser }) {
     soundManager.playNotification();
 
     // Emitir asignación por WebSocket en tiempo real
+    localAssignedConvIdsRef.current.set(conversationId, Date.now());
     if (userId) {
       socketService.emitConversationAssign({
         conversationId,
         clientName,
         assignedAgentId: userId,
         assignedAgentName: agentName,
-        assignedByName: user?.fullName || 'Laura Morales (Supervisora)',
+        assignedByName: user?.fullName || 'Supervisor',
+        assignedById: user?.id,
       });
     }
 

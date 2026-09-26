@@ -57,11 +57,11 @@ class WebSocketService {
   }
 
   // Asignación de Conversaciones en Tiempo Real
-  emitConversationAssign(payload: { conversationId: string; clientName: string; assignedAgentId: string; assignedAgentName: string; assignedByName: string }) {
+  emitConversationAssign(payload: { conversationId: string; clientName: string; assignedAgentId: string; assignedAgentName: string; assignedByName: string; assignedById?: string }) {
     this.socket?.emit('conversation:assign', payload);
   }
 
-  onConversationAssign(callback: (data: { conversationId: string; clientName: string; assignedAgentId: string; assignedAgentName: string; assignedByName: string }) => void) {
+  onConversationAssign(callback: (data: { conversationId: string; clientName: string; assignedAgentId: string; assignedAgentName: string; assignedByName: string; assignedById?: string }) => void) {
     this.socket?.on('conversation:assign', callback);
   }
 
