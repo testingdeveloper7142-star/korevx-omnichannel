@@ -101,6 +101,7 @@ export class ChannelsService {
     platform: PlatformType;
     accountName: string;
     accountHandle?: string;
+    accessToken?: string;
   }) {
     // 1. Validar cuota permitida para esta red social en este workspace
     const workspace = await this.prisma.workspace.findUnique({
@@ -149,7 +150,7 @@ export class ChannelsService {
         accountName: dto.accountName,
         accountHandle: dto.accountHandle || `@${dto.accountName.toLowerCase().replace(/\s+/g, '')}`,
         externalAccountId: extId,
-        accessToken: `live-token-${Date.now()}`,
+        accessToken: dto.accessToken?.trim() || `live-token-${Date.now()}`,
         isActive: true,
       },
     });

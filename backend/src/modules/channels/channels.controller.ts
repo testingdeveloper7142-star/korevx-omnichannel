@@ -30,6 +30,7 @@ export class ChannelsController {
       platform: PlatformType;
       accountName: string;
       accountHandle?: string;
+      accessToken?: string;
     },
   ) {
     return this.channelsService.createChannel(body);

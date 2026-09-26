@@ -60,6 +60,21 @@ export class FacebookAdapter implements ISocialChannelAdapter {
 
             const recipientPageId = msgItem.recipient?.id || entry.id;
 
+            // Extraer nombre de sender o from si viene en el webhook
+            const senderNameCandidate =
+              msgItem.sender?.name ||
+              msgItem.from?.name ||
+              (msgItem.sender?.first_name
+                ? `${msgItem.sender.first_name} ${msgItem.sender.last_name || ''}`.trim()
+                : null) ||
+              undefined;
+
+            const senderAvatarCandidate =
+              msgItem.sender?.profile_pic ||
+              msgItem.sender?.avatarUrl ||
+              msgItem.from?.profile_pic ||
+              undefined;
+
             events.push({
               platform: PlatformType.FACEBOOK,
               channelAccountId,
@@ -69,7 +84,8 @@ export class FacebookAdapter implements ISocialChannelAdapter {
               recipientExternalId: recipientPageId,
               sender: {
                 externalId: senderId,
-                name: `Usuario FB (${senderId.substring(0, 6)})`,
+                name: senderNameCandidate || `Usuario FB (${senderId.substring(0, 6)})`,
+                avatarUrl: senderAvatarCandidate,
               },
               content: text,
               mediaUrls: mediaUrls.length > 0 ? mediaUrls : undefined,
@@ -86,7 +102,17 @@ export class FacebookAdapter implements ISocialChannelAdapter {
           if (change.field === 'feed' && change.value?.item === 'comment' && change.value?.verb === 'add') {
             const comment = change.value;
             const senderId = comment.from?.id || 'unknown';
-            const senderName = comment.from?.name || `Usuario FB (${senderId.substring(0, 6)})`;
+            const senderNameCandidate =
+              comment.from?.name ||
+              (comment.from?.first_name
+                ? `${comment.from.first_name} ${comment.from.last_name || ''}`.trim()
+                : null) ||
+              undefined;
+            const senderAvatarCandidate =
+              comment.from?.picture?.data?.url ||
+              comment.from?.profile_pic ||
+              comment.from?.avatarUrl ||
+              undefined;
             const commentId = comment.comment_id || `comment_${Date.now()}`;
             const postId = comment.post_id || entry.id;
             const recipientPageId = entry.id;
@@ -100,7 +126,8 @@ export class FacebookAdapter implements ISocialChannelAdapter {
               recipientExternalId: recipientPageId,
               sender: {
                 externalId: senderId,
-                name: senderName,
+                name: senderNameCandidate || `Usuario FB (${senderId.substring(0, 6)})`,
+                avatarUrl: senderAvatarCandidate,
               },
               content: comment.message || '',
               mediaUrls: comment.photo ? [comment.photo] : undefined,

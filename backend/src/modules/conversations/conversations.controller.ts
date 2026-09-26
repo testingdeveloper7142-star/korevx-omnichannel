@@ -63,4 +63,13 @@ export class ConversationsController {
       dto.parentCommentId,
     );
   }
+
+  @Patch(':id/contact')
+  @ApiOperation({ summary: 'Actualizar nombre de contacto de la conversación' })
+  async updateContact(
+    @Param('id') id: string,
+    @Body() dto: { name: string },
+  ) {
+    return this.conversationsService.updateConversationContact(id, dto.name);
+  }
 }

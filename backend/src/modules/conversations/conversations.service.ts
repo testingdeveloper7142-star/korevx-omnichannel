@@ -342,4 +342,57 @@ export class ConversationsService {
 
     return message;
   }
+
+  async updateConversationContact(id: string, name: string) {
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id },
+      include: { contact: true },
+    });
+    if (!conversation) {
+      throw new NotFoundException(`Conversación ${id} no encontrada`);
+    }
+
+    const trimmedName = name.trim();
+    await this.prisma.contact.update({
+      where: { id: conversation.contactId },
+      data: { name: trimmedName },
+    });
+
+    await this.prisma.contactSocialIdentity.updateMany({
+      where: { contactId: conversation.contactId },
+      data: { displayName: trimmedName },
+    });
+
+    const updatedConv = await this.prisma.conversation.findUnique({
+      where: { id },
+      include: {
+        contact: {
+          include: {
+            socialIdentities: true,
+            notes: {
+              where: { deletedAt: null },
+              include: { author: true },
+              orderBy: { createdAt: 'desc' },
+            },
+          },
+        },
+        channelAccount: true,
+        assignedUser: true,
+        messages: {
+          where: { deletedAt: null },
+          orderBy: { sentAt: 'asc' },
+        },
+        lifecycleLogs: {
+          include: { performedBy: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    if (updatedConv) {
+      this.eventsGateway.emitConversationUpdated(updatedConv.workspaceId, updatedConv);
+    }
+
+    return updatedConv;
+  }
 }

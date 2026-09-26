@@ -55,6 +55,28 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
   const [newPlatform, setNewPlatform] = useState<PlatformType>('WHATSAPP');
   const [newAccountName, setNewAccountName] = useState('');
   const [newAccountHandle, setNewAccountHandle] = useState('');
+  const [newAccessToken, setNewAccessToken] = useState('');
+  const [editingTokenChannelId, setEditingTokenChannelId] = useState<string | null>(null);
+  const [tokenInput, setTokenInput] = useState('');
+  const [isUpdatingToken, setIsUpdatingToken] = useState(false);
+
+  const handleUpdateToken = async (channelId: string) => {
+    if (!tokenInput.trim()) return;
+    setIsUpdatingToken(true);
+    try {
+      await axios.patch(`/api/v1/channels/${channelId}/token`, {
+        accessToken: tokenInput.trim(),
+      });
+      alert('Token de acceso actualizado exitosamente. Ahora KorevX consultará el nombre y foto oficial del usuario.');
+      setEditingTokenChannelId(null);
+      setTokenInput('');
+      onChannelRefresh();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error actualizando el token de acceso');
+    } finally {
+      setIsUpdatingToken(false);
+    }
+  };
 
   const currentPlatformCount = (channelCounts as any)[newPlatform] ?? 0;
   const currentPlatformLimit = (effectiveLimits as any)[newPlatform] ?? 0;
@@ -119,6 +141,7 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
         platform: newPlatform,
         accountName: newAccountName.trim(),
         accountHandle: cleanHandle,
+        accessToken: newAccessToken.trim() || undefined,
       });
       if (res.data?.id) {
         createdChannel.id = res.data.id;
@@ -133,6 +156,7 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
     }
     setNewAccountName('');
     setNewAccountHandle('');
+    setNewAccessToken('');
     setIsAddChannelModalOpen(false);
     onChannelRefresh();
   };
@@ -327,6 +351,18 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
                 </span>
 
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setEditingTokenChannelId(chan.id);
+                      setTokenInput('');
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition bg-cyan-950/30 hover:bg-cyan-900/40 text-cyan-300 border border-cyan-800/40"
+                    title="Configurar Token de Página de Meta / Graph API"
+                  >
+                    <i className="fa-solid fa-key text-xs"></i>
+                    <span>Token</span>
+                  </button>
+
                   {onToggleChannelStatus && (
                     <button
                       onClick={() => onToggleChannelStatus(chan.id)}
@@ -516,6 +552,23 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
                   />
                 </div>
 
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase font-tech block mb-1.5 flex items-center justify-between">
+                    <span>Token de Acceso de Página / Meta Token (Opcional)</span>
+                    <span className="text-[10px] text-cyan-400 font-normal">Para foto y nombre real</span>
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="EAA... (Token de Página generado en Meta for Developers)"
+                    value={newAccessToken}
+                    onChange={(e) => setNewAccessToken(e.target.value)}
+                    className="w-full bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl p-2.5 text-xs text-white placeholder-slate-500 font-mono"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Si proporcionas el Token de Página de Meta, KorevX consultará el nombre completo y la foto de perfil oficial del cliente en cada interacción.
+                  </p>
+                </div>
+
                 {/* Advertencia de Cuota Superada o No Habilitada */}
                 {isPlatformZero && (
                   <div className="p-3.5 rounded-2xl bg-rose-950/30 border border-rose-500/50 text-xs text-rose-300 flex items-start gap-2.5">
@@ -563,6 +616,89 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
                   </button>
                 </div>
               </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Modal para configurar o actualizar Token de Acceso de Página */}
+      {editingTokenChannelId &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+            <div className="w-full max-w-md bg-[#05080F] border border-[#141B29] rounded-2xl p-6 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-[#111622] pb-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-8 h-8 rounded-xl bg-[#00F0FF]/15 text-[#00F0FF] border border-[#00F0FF]/30 flex items-center justify-center text-sm shadow-sm">
+                    <i className="fa-solid fa-key"></i>
+                  </span>
+                  <div>
+                    <h4 className="text-sm font-bold text-white font-tech">Token de Acceso de Página</h4>
+                    <p className="text-[11px] text-slate-400">Meta Graph API / Facebook & Instagram</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingTokenChannelId(null)}
+                  className="w-7 h-7 rounded-lg bg-[#080C14] hover:bg-[#121824] text-slate-400 hover:text-white border border-[#141B29] flex items-center justify-center text-xs transition"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Configura o renueva el <strong>Page Access Token</strong> (Token de Página) generado en Meta for Developers. Esto permite a KorevX consultar automáticamente el <strong>nombre real</strong> y la <strong>foto de perfil oficial</strong> de cada usuario que te escribe.
+                </p>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase font-tech block mb-1.5">
+                    Page Access Token
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="EAA... (Token de larga duración de la Página Meta)"
+                    value={tokenInput}
+                    onChange={(e) => setTokenInput(e.target.value)}
+                    autoFocus
+                    className="w-full bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl p-2.5 text-xs text-white placeholder-slate-500 font-mono"
+                  />
+                </div>
+
+                <div className="p-3 rounded-xl bg-cyan-950/20 border border-cyan-800/30 text-[11px] text-cyan-300 flex items-start gap-2">
+                  <i className="fa-solid fa-circle-info text-cyan-400 mt-0.5"></i>
+                  <span>
+                    El token se almacena de forma segura y encriptada por canal, permitiendo también responder mensajes desde la bandeja unificada.
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#111622]">
+                <button
+                  type="button"
+                  onClick={() => setEditingTokenChannelId(null)}
+                  className="px-4 py-2 rounded-xl bg-[#080C14] border border-[#141B29] text-slate-400 hover:text-white text-xs font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={isUpdatingToken || !tokenInput.trim()}
+                  onClick={() => handleUpdateToken(editingTokenChannelId)}
+                  className="px-5 py-2 rounded-xl bg-[#00F0FF] hover:bg-[#00D7E5] disabled:opacity-40 disabled:cursor-not-allowed text-[#030508] text-xs font-bold font-tech shadow-md shadow-[#00F0FF]/20 transition flex items-center gap-1.5"
+                >
+                  {isUpdatingToken ? (
+                    <>
+                      <i className="fa-solid fa-spinner fa-spin text-xs"></i>
+                      <span>Guardando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-check text-xs"></i>
+                      <span>Guardar Token</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>,
           document.body

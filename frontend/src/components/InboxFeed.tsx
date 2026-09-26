@@ -361,7 +361,7 @@ export const InboxFeed: React.FC<InboxFeedProps> = ({
                     <img
                       src={
                         conv.contact?.avatarUrl ||
-                        `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80`
+                        `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.contact?.name || 'Cliente')}&background=1877F2&color=fff&bold=true`
                       }
                       alt={conv.contact?.name || 'Cliente'}
                       className="w-11 h-11 rounded-full object-cover ring-1 ring-[#1A2332]"
@@ -391,6 +391,23 @@ export const InboxFeed: React.FC<InboxFeedProps> = ({
                         </span>
                       )}
                       {getAssignedBadge(conv)}
+
+                      {/* Botón para que el Operador tome el chat directamente si está sin asignar */}
+                      {user?.role === 'AGENT' && !conv.assignedUserId && onAssignUser && (
+                        <button
+                          type="button"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            await onAssignUser(conv.id, user.id);
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/50 text-[10px] font-bold text-emerald-300 hover:bg-emerald-500/40 hover:text-white transition shadow-sm animate-pulse"
+                          title="Asignarme este caso inmediatamente"
+                        >
+                          <i className="fa-solid fa-hand-holding-hand text-[9px]"></i>
+                          <span>🙋 Tomar Chat</span>
+                        </button>
+                      )}
+
                       {/* Selector Rápido de Asignación Manual para Admin/Supervisor */}
                       {user?.role !== 'AGENT' && onAssignUser && (
                         <div

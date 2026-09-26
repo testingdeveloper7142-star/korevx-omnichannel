@@ -62,10 +62,38 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   const contactFirstName = contactName.split(' ')[0] || 'Cliente';
   const contactAvatar =
     conversation?.contact?.avatarUrl ||
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80';
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(contactName)}&background=1877F2&color=fff&bold=true`;
   const platform = conversation?.channelAccount?.platform || 'INSTAGRAM';
   const accountName = conversation?.channelAccount?.accountName || 'Canal Oficial';
   const messages = conversation?.messages || [];
+
+  const [isEditingContact, setIsEditingContact] = useState(false);
+  const [editedContactName, setEditedContactName] = useState(conversation?.contact?.name || 'Cliente');
+
+  React.useEffect(() => {
+    setEditedContactName(conversation?.contact?.name || 'Cliente');
+    setIsEditingContact(false);
+  }, [conversation?.id, conversation?.contact?.name]);
+
+  const handleSaveContactName = async () => {
+    const trimmed = editedContactName.trim();
+    if (!trimmed || trimmed === contactName) {
+      setIsEditingContact(false);
+      return;
+    }
+    try {
+      await axios.patch(`/api/v1/conversations/${conversation.id}/contact`, {
+        name: trimmed,
+      });
+      if (conversation.contact) {
+        conversation.contact.name = trimmed;
+      }
+      setIsEditingContact(false);
+    } catch (err) {
+      console.error('Error actualizando nombre de contacto:', err);
+      setIsEditingContact(false);
+    }
+  };
 
   // Verificar si ya existe al menos un mensaje previo de un agente
   const hasAgentReplied = messages.some((m) => m.senderType === 'AGENT');
@@ -312,9 +340,55 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-xs sm:text-sm font-bold text-white truncate font-tech">
-                    {contactName}
-                  </h3>
+                  {isEditingContact ? (
+                    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="text"
+                        value={editedContactName}
+                        onChange={(e) => setEditedContactName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveContactName();
+                          if (e.key === 'Escape') setIsEditingContact(false);
+                        }}
+                        autoFocus
+                        className="bg-[#080C14] border border-[#00F0FF]/60 rounded-lg px-2 py-0.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#00F0FF]"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveContactName}
+                        className="p-1 rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 text-[10px]"
+                        title="Guardar nombre"
+                      >
+                        <i className="fa-solid fa-check"></i>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingContact(false)}
+                        className="p-1 rounded bg-slate-800 text-slate-400 hover:bg-slate-700 text-[10px]"
+                        title="Cancelar"
+                      >
+                        <i className="fa-solid fa-xmark"></i>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="text-xs sm:text-sm font-bold text-white truncate font-tech">
+                        {contactName}
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditedContactName(contactName);
+                          setIsEditingContact(true);
+                        }}
+                        className="text-slate-400 hover:text-[#00F0FF] text-[11px] p-0.5 transition"
+                        title="Editar nombre del cliente"
+                      >
+                        <i className="fa-solid fa-pencil"></i>
+                      </button>
+                    </div>
+                  )}
+
                   {conversation.interactionType === 'DIRECT_MESSAGE' ? (
                     <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/15 text-[#10B981] font-semibold border border-emerald-500/30">
                       DM
@@ -324,15 +398,31 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                       Post Comment
                     </span>
                   )}
-                  {/* Badge de Asignación explícita */}
+
+                  {/* Badge de Asignación explícita y botón Tomar Caso */}
                   {conversation.assignedUserId === user?.id ? (
                     <span className="text-[10px] px-2 py-0.2 rounded-full bg-cyan-500/15 text-[#00F0FF] font-semibold border border-cyan-500/30">
                       Asignado a ti
                     </span>
                   ) : !conversation.assignedUserId || conversation.status === 'PENDING' ? (
-                    <span className="text-[10px] px-2 py-0.2 rounded-full bg-amber-500/15 text-amber-300 font-semibold border border-amber-500/30">
-                      En Cola (Sin Asignar)
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] px-2 py-0.2 rounded-full bg-amber-500/15 text-amber-300 font-semibold border border-amber-500/30">
+                        En Cola (Sin Asignar)
+                      </span>
+                      {user?.role === 'AGENT' && onAssignUser && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await onAssignUser(user.id);
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-emerald-500/25 to-teal-500/25 border border-emerald-500/50 text-[10px] font-bold text-emerald-300 hover:bg-emerald-500/40 hover:text-white transition shadow-sm animate-pulse"
+                          title="Asignarme este caso inmediatamente"
+                        >
+                          <i className="fa-solid fa-hand-holding-hand text-[9px]"></i>
+                          <span>🙋 Tomar Caso</span>
+                        </button>
+                      )}
+                    </div>
                   ) : (
                     <span className="text-[10px] px-2 py-0.2 rounded-full bg-slate-800 text-slate-300 font-semibold border border-slate-700">
                       Tomado por: {conversation.assignedUser?.fullName || 'Otro Operador'}

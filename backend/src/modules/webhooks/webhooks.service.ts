@@ -7,7 +7,7 @@ import {
   PlatformType,
   InteractionType,
 } from '../channels/interfaces/social-channel-adapter.interface';
-import { ConversationStatus, SenderType } from '@prisma/client';
+import { ConversationStatus, SenderType, UserRole } from '@prisma/client';
 
 @Injectable()
 export class WebhooksService {
@@ -113,7 +113,10 @@ export class WebhooksService {
     let senderAvatarUrl = event.sender.avatarUrl;
 
     const tokenForProfile =
-      channel.accessToken && !channel.accessToken.includes('demo') && !channel.accessToken.includes('dummy')
+      channel.accessToken &&
+      !channel.accessToken.includes('demo') &&
+      !channel.accessToken.includes('dummy') &&
+      !channel.accessToken.includes('live-token-')
         ? channel.accessToken
         : process.env.META_PAGE_ACCESS_TOKEN;
 
@@ -146,6 +149,12 @@ export class WebhooksService {
           `No se pudo obtener perfil de Facebook (${event.sender.externalId}): ${profileErr.message}`,
         );
       }
+    }
+
+    // Si aún no tenemos avatar válido, generamos un avatar estilizado con sus iniciales de ui-avatars.com
+    if (!senderAvatarUrl) {
+      const cleanName = senderName && !senderName.startsWith('Usuario FB') ? senderName : 'Cliente Facebook';
+      senderAvatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=1877F2&color=fff&bold=true`;
     }
 
     // 3. Gestionar Identidad Social y Contacto (CRM Unificado)
@@ -206,6 +215,53 @@ export class WebhooksService {
       }
     }
 
+    // Helper para auto-asignación inteligente (Round-Robin / Menor carga a operadores del workspace)
+    const findLeastBusyAgent = async () => {
+      try {
+        const availableAgents = await this.prisma.user.findMany({
+          where: {
+            workspaceId,
+            role: UserRole.AGENT,
+          },
+          include: {
+            assignedConversations: {
+              where: {
+                status: { in: [ConversationStatus.PENDING, ConversationStatus.ASSIGNED] },
+              },
+              select: { id: true },
+            },
+          },
+        });
+
+        if (availableAgents.length > 0) {
+          // Priorizar agentes online si existen
+          const onlineAgents = availableAgents.filter((a) => a.isOnline);
+          const pool = onlineAgents.length > 0 ? onlineAgents : availableAgents;
+
+          // Ordenar por menor carga activa y luego por fecha del último caso asignado (Round-Robin)
+          pool.sort((a, b) => {
+            const diff = a.assignedConversations.length - b.assignedConversations.length;
+            if (diff !== 0) return diff;
+            const timeA = a.lastAssignedAt ? new Date(a.lastAssignedAt).getTime() : 0;
+            const timeB = b.lastAssignedAt ? new Date(b.lastAssignedAt).getTime() : 0;
+            return timeA - timeB;
+          });
+
+          const selected = pool[0];
+          await this.prisma.user.update({
+            where: { id: selected.id },
+            data: { lastAssignedAt: new Date() },
+          });
+
+          return selected;
+        }
+        return null;
+      } catch (err) {
+        this.logger.warn(`Error buscando agente disponible para asignación: ${err.message}`);
+        return null;
+      }
+    };
+
     // 3. Obtener o crear Conversación
     let conversation = await this.prisma.conversation.findUnique({
       where: {
@@ -214,9 +270,18 @@ export class WebhooksService {
           externalThreadId: event.externalConversationId,
         },
       },
+      include: {
+        contact: true,
+        channelAccount: true,
+        assignedUser: true,
+      },
     });
 
     if (!conversation) {
+      const leastBusyAgent = await findLeastBusyAgent();
+      const assignedUserId = leastBusyAgent ? leastBusyAgent.id : null;
+      const initialStatus = leastBusyAgent ? ConversationStatus.ASSIGNED : ConversationStatus.PENDING;
+
       conversation = await this.prisma.conversation.create({
         data: {
           workspaceId,
@@ -228,19 +293,49 @@ export class WebhooksService {
           postUrl: event.postContext?.postUrl,
           postTitle: event.postContext?.postTitle,
           postThumbnail: event.postContext?.postThumbnail,
-          status: ConversationStatus.PENDING,
+          status: initialStatus,
+          assignedUserId,
           lastActivityAt: event.timestamp,
           unreadCount: 1,
         },
+        include: {
+          contact: true,
+          channelAccount: true,
+          assignedUser: true,
+        },
       });
+
+      if (leastBusyAgent) {
+        this.logger.log(`Conversación auto-asignada al operador ${leastBusyAgent.fullName} (${leastBusyAgent.id})`);
+      }
     } else {
-      // Reabrir a PENDING si ya estaba resuelta o sigue pendiente
+      let assignedUserId = conversation.assignedUserId;
+      let newStatus = conversation.status;
+
+      // Si no tiene asignado o estaba resuelta, intentar asignar al operador menos ocupado
+      if (!assignedUserId || conversation.status === ConversationStatus.RESOLVED) {
+        const leastBusyAgent = await findLeastBusyAgent();
+        if (leastBusyAgent) {
+          assignedUserId = leastBusyAgent.id;
+          newStatus = ConversationStatus.ASSIGNED;
+          this.logger.log(`Conversación reasignada automáticamente al operador ${leastBusyAgent.fullName} (${leastBusyAgent.id})`);
+        } else {
+          newStatus = ConversationStatus.PENDING;
+        }
+      }
+
       conversation = await this.prisma.conversation.update({
         where: { id: conversation.id },
         data: {
-          status: conversation.status === ConversationStatus.RESOLVED ? ConversationStatus.PENDING : conversation.status,
+          status: newStatus,
+          assignedUserId,
           unreadCount: { increment: 1 },
           lastActivityAt: event.timestamp,
+        },
+        include: {
+          contact: true,
+          channelAccount: true,
+          assignedUser: true,
         },
       });
     }
