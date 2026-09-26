@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, Req } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Request } from 'express';
 import { TicketsService, CreateTicketDto } from './tickets.service';
@@ -102,5 +102,11 @@ export class TicketsController {
     @Body() body: { granted: boolean; userId: string },
   ) {
     return this.ticketsService.toggleSupportMode(id, body.granted, body.userId);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Cancelar o eliminar un ticket' })
+  async deleteTicket(@Param('id') id: string) {
+    return this.ticketsService.deleteTicket(id);
   }
 }

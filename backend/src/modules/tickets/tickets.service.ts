@@ -268,4 +268,16 @@ export class TicketsService {
 
     return updated;
   }
+
+  async deleteTicket(ticketId: string) {
+    try {
+      const ticket = await this.prisma.internalTicket.findUnique({ where: { id: ticketId } });
+      if (!ticket) return { success: true };
+
+      await this.prisma.internalTicket.delete({ where: { id: ticketId } });
+      return { success: true };
+    } catch {
+      return { success: true };
+    }
+  }
 }

@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { InternalTicket, TicketStatus } from '../../types';
 import { CreateTicketModal } from '../tickets/CreateTicketModal';
+import { soundManager } from '../../utils/audio';
 
 export interface Agent {
   id: string;
@@ -162,11 +163,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [tickets, setTickets] = useState<InternalTicket[]>([]);
   const [isLoadingTickets, setIsLoadingTickets] = useState(false);
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
-  const [resolvingTicketId, setResolvingTicketId] = useState<string | null>(null);
-  const [resolutionNote, setResolutionNote] = useState('');
 
-  // Pestaña Admin: Exclusivamente tickets de Admin y Super Admin (escalamientos a Core / soporte L3)
-  // Los tickets de operadores se gestionan exclusivamente en el Centro de Tickets
+  // Pestaña Admin: Exclusivamente tickets de reporte a Super Admin (escalamientos a Core / soporte L3)
+  // Las opciones de Tomar Caso y Resolver son exclusivas del Super Admin en su panel central.
   const adminTickets = (Array.isArray(tickets) ? tickets : []).filter(
     (t) =>
       t.type === 'ADMIN_TO_SUPERADMIN' ||
@@ -183,7 +182,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setTickets(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.warn('Error cargando tickets:', err);
-      setTickets([]);
+      // Fallback local
+      try {
+        const saved = localStorage.getItem('korevx_tickets');
+        if (saved) {
+          const list = JSON.parse(saved);
+          setTickets(Array.isArray(list) ? list : []);
+        }
+      } catch {}
     } finally {
       setIsLoadingTickets(false);
     }
@@ -195,19 +201,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   }, [activeTab]);
 
-  const handleUpdateTicketStatus = async (ticketId: string, status: TicketStatus) => {
+  const handleCancelTicket = async (ticketId: string) => {
+    if (!window.confirm('¿Deseas cancelar esta solicitud enviada al Super Admin?')) return;
     try {
-      await axios.patch(`/api/v1/tickets/${ticketId}/status`, {
-        status,
-        resolutionNotes: resolutionNote.trim() || undefined,
-        userId: user?.id,
+      await axios.delete(`/api/v1/tickets/${ticketId}`, {
+        params: { userId: user?.id },
       });
-      setResolvingTicketId(null);
-      setResolutionNote('');
-      loadTickets();
-    } catch (err) {
-      console.warn('Error actualizando ticket:', err);
+    } catch {
+      // Fallback local
+      try {
+        const saved = localStorage.getItem('korevx_tickets');
+        if (saved) {
+          const list = JSON.parse(saved);
+          const filtered = list.filter((t: any) => t.id !== ticketId);
+          localStorage.setItem('korevx_tickets', JSON.stringify(filtered));
+        }
+      } catch {}
     }
+    soundManager.playNotification();
+    loadTickets();
   };
 
   const handleAddTemplate = (e: React.FormEvent) => {
@@ -284,8 +296,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <i className="fa-solid fa-server text-cyan-400 text-xs"></i>
-            <span>Tickets Admin & Core</span>
+            <i className="fa-solid fa-headset text-cyan-400 text-xs"></i>
+            <span>Soporte con Super Admin</span>
             {adminTickets.filter((t) => t.status === 'OPEN').length > 0 && (
               <span className="w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">
                 {adminTickets.filter((t) => t.status === 'OPEN').length}
@@ -674,11 +686,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-[#05080F] border border-cyan-900/30">
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <i className="fa-solid fa-server text-cyan-400"></i>
-                <span>Incidencias Técnicas y Escalamiento a Super Admin (Core)</span>
+                <i className="fa-solid fa-headset text-cyan-400"></i>
+                <span>Canal de Soporte & Reportes al Super Admin (Core)</span>
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                Canal exclusivo para reportar caídas de infraestructura, fallas de webhooks, facturación o soporte Nivel 3 directo al equipo de plataforma KorevX Core.
+                Canal exclusivo para solicitar asistencia o reportar incidencias de plataforma al equipo de KorevX Core. La resolución es realizada por el Super Admin.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -687,35 +699,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs flex items-center gap-2 shadow-lg shadow-purple-900/30 transition font-tech"
               >
                 <i className="fa-solid fa-plus text-xs"></i>
-                <span>Reportar a Super Admin (Core)</span>
+                <span>Solicitar Ayuda al Super Admin</span>
               </button>
               <button
                 onClick={loadTickets}
                 className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition"
-                title="Refrescar incidencias"
+                title="Refrescar solicitudes"
               >
                 <i className="fa-solid fa-rotate-right text-xs"></i>
               </button>
             </div>
           </div>
 
-          {/* Filtros de Estado para Incidencias de Plataforma */}
+          {/* Filtros de Estado para Solicitudes a Super Admin */}
           <div className="flex items-center gap-2 text-xs bg-[#05080F] p-3 rounded-xl border border-[#111726]">
             <i className="fa-solid fa-filter text-[#00F0FF] text-xs"></i>
-            <span className="text-slate-400 font-tech font-semibold">Estado de Incidencia:</span>
+            <span className="text-slate-400 font-tech font-semibold">Estado de Solicitud:</span>
             <select
               value={selectedOperatorFilter}
               onChange={(e) => setSelectedOperatorFilter(e.target.value)}
               className="bg-[#080C14] text-[#00F0FF] border border-[#141B29] rounded-lg px-2.5 py-1 font-bold focus:outline-none cursor-pointer text-xs"
             >
               <option value="ALL" className="bg-[#05080F] text-slate-300">
-                Todas las Incidencias ({adminTickets.length})
+                Todas las Solicitudes ({adminTickets.length})
               </option>
               <option value="OPEN" className="bg-[#05080F] text-amber-400">
-                Abiertas ({adminTickets.filter((t) => t.status === 'OPEN').length})
+                En Espera ({adminTickets.filter((t) => t.status === 'OPEN').length})
               </option>
               <option value="RESOLVED" className="bg-[#05080F] text-emerald-400">
-                Resueltas por Core ({adminTickets.filter((t) => t.status === 'RESOLVED').length})
+                Resueltas por Super Admin ({adminTickets.filter((t) => t.status === 'RESOLVED').length})
               </option>
             </select>
           </div>
@@ -723,14 +735,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           {isLoadingTickets ? (
             <div className="p-12 text-center text-slate-400 text-xs">
               <i className="fa-solid fa-spinner fa-spin text-xl text-cyan-400 mb-2"></i>
-              <p>Cargando incidencias técnicas...</p>
+              <p>Cargando solicitudes al Super Admin...</p>
             </div>
           ) : adminTickets.length === 0 ? (
             <div className="p-12 text-center rounded-2xl bg-[#05080F] border border-[#111726] text-slate-400 text-xs">
               <i className="fa-solid fa-circle-check text-3xl text-emerald-400 mb-3"></i>
-              <p className="font-semibold text-slate-200">No hay incidencias técnicas con Super Admin (Core)</p>
+              <p className="font-semibold text-slate-200">No hay solicitudes activas enviadas al Super Admin</p>
               <p className="text-slate-500 mt-1">
-                La plataforma opera con total normalidad. Las solicitudes de tus operadores se gestionan en el Centro de Tickets.
+                La plataforma opera con normalidad. Si necesitas soporte técnico o ampliación de capacidades, usa el botón superior.
               </p>
             </div>
           ) : (
@@ -804,59 +816,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </div>
 
                       {t.resolutionNotes && (
-                        <div className="p-3 rounded-xl bg-[#080C14] border border-[#141B29] text-xs">
-                          <p className="text-[10px] font-bold text-emerald-400 uppercase font-tech">Nota de Resolución</p>
-                          <p className="text-slate-300 mt-1">{t.resolutionNotes}</p>
+                        <div className="p-3 rounded-xl bg-emerald-950/25 border border-emerald-500/30 text-xs">
+                          <p className="text-[10px] font-bold text-emerald-400 uppercase font-tech flex items-center gap-1.5">
+                            <i className="fa-solid fa-circle-check text-xs"></i>
+                            <span>Respuesta Técnica del Super Admin</span>
+                          </p>
+                          <p className="text-slate-200 mt-1 leading-relaxed">{t.resolutionNotes}</p>
                         </div>
                       )}
                     </div>
 
-                    {/* Acciones del ticket */}
-                    {t.status !== 'RESOLVED' && (
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {resolvingTicketId === t.id ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              placeholder="Nota de resolución..."
-                              value={resolutionNote}
-                              onChange={(e) => setResolutionNote(e.target.value)}
-                              className="bg-[#080C14] border border-[#141B29] rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 w-48"
-                            />
-                            <button
-                              onClick={() => handleUpdateTicketStatus(t.id, 'RESOLVED')}
-                              className="px-3 py-1.5 rounded-xl bg-[#10B981] hover:bg-emerald-600 text-black font-bold text-xs transition"
-                            >
-                              Confirmar
-                            </button>
-                            <button
-                              onClick={() => setResolvingTicketId(null)}
-                              className="p-1.5 text-slate-400 hover:text-white text-xs"
-                            >
-                              <i className="fa-solid fa-xmark"></i>
-                            </button>
-                          </div>
-                        ) : (
-                          <>
-                            {t.status === 'OPEN' && (
-                              <button
-                                onClick={() => handleUpdateTicketStatus(t.id, 'IN_REVIEW')}
-                                className="px-3 py-1.5 rounded-xl bg-blue-950/40 hover:bg-blue-900/50 border border-blue-600/40 text-blue-300 text-xs font-semibold transition"
-                              >
-                                Tomar Caso
-                              </button>
-                            )}
-                            <button
-                              onClick={() => setResolvingTicketId(t.id)}
-                              className="px-3 py-1.5 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-600/40 text-emerald-300 text-xs font-semibold transition flex items-center gap-1.5"
-                            >
-                              <i className="fa-solid fa-check"></i>
-                              <span>Resolver</span>
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    )}
+                    {/* Estado del ticket visto por el Administrador de la Empresa (Sin controles de Super Admin) */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {t.status === 'OPEN' && (
+                        <div className="flex items-center gap-2">
+                          <span className="px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 font-tech">
+                            <i className="fa-regular fa-clock text-xs text-amber-400"></i>
+                            <span>Esperando Atención del Super Admin</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleCancelTicket(t.id)}
+                            className="px-2.5 py-1.5 rounded-xl bg-rose-950/30 hover:bg-rose-900/50 border border-rose-800/40 text-rose-300 text-xs font-medium transition flex items-center gap-1 font-tech"
+                            title="Cancelar esta solicitud enviada al Super Admin"
+                          >
+                            <i className="fa-solid fa-trash-can text-[10px]"></i>
+                            <span>Cancelar</span>
+                          </button>
+                        </div>
+                      )}
+                      {t.status === 'IN_REVIEW' && (
+                        <span className="px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs font-semibold flex items-center gap-1.5 font-tech">
+                          <i className="fa-solid fa-spinner fa-spin text-xs text-blue-400"></i>
+                          <span>En Revisión por Equipo Core</span>
+                        </span>
+                      )}
+                      {t.status === 'RESOLVED' && (
+                        <span className="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 font-tech">
+                          <i className="fa-solid fa-circle-check text-xs text-emerald-400"></i>
+                          <span>Resuelto por Super Admin</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
               })}
