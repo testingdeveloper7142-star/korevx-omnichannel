@@ -306,9 +306,13 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
               </span>
               <span className="text-xs text-slate-300 font-tech">Facebook</span>
             </div>
-            <span className={`text-xs font-bold font-tech ${channelCounts.FACEBOOK >= effectiveLimits.FACEBOOK ? 'text-amber-400' : 'text-white'}`}>
-              {channelCounts.FACEBOOK} / {effectiveLimits.FACEBOOK}
-            </span>
+            {effectiveLimits.FACEBOOK <= 0 ? (
+              <span className="text-xs font-semibold font-tech text-slate-500">No incluida</span>
+            ) : (
+              <span className={`text-xs font-bold font-tech ${channelCounts.FACEBOOK >= effectiveLimits.FACEBOOK ? 'text-amber-400' : 'text-white'}`}>
+                {channelCounts.FACEBOOK} / {effectiveLimits.FACEBOOK}
+              </span>
+            )}
           </div>
 
           <div className="p-2.5 rounded-xl bg-[#080C14] border border-[#141B29] flex items-center justify-between">
@@ -318,9 +322,13 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
               </span>
               <span className="text-xs text-slate-300 font-tech">Instagram</span>
             </div>
-            <span className={`text-xs font-bold font-tech ${channelCounts.INSTAGRAM >= effectiveLimits.INSTAGRAM ? 'text-amber-400' : 'text-white'}`}>
-              {channelCounts.INSTAGRAM} / {effectiveLimits.INSTAGRAM}
-            </span>
+            {effectiveLimits.INSTAGRAM <= 0 ? (
+              <span className="text-xs font-semibold font-tech text-slate-500">No incluida</span>
+            ) : (
+              <span className={`text-xs font-bold font-tech ${channelCounts.INSTAGRAM >= effectiveLimits.INSTAGRAM ? 'text-amber-400' : 'text-white'}`}>
+                {channelCounts.INSTAGRAM} / {effectiveLimits.INSTAGRAM}
+              </span>
+            )}
           </div>
 
           <div className="p-2.5 rounded-xl bg-[#080C14] border border-[#141B29] flex items-center justify-between">
@@ -330,9 +338,13 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
               </span>
               <span className="text-xs text-slate-300 font-tech">WhatsApp</span>
             </div>
-            <span className={`text-xs font-bold font-tech ${channelCounts.WHATSAPP >= effectiveLimits.WHATSAPP ? 'text-amber-400' : 'text-white'}`}>
-              {channelCounts.WHATSAPP} / {effectiveLimits.WHATSAPP}
-            </span>
+            {effectiveLimits.WHATSAPP <= 0 ? (
+              <span className="text-xs font-semibold font-tech text-slate-500">No incluida</span>
+            ) : (
+              <span className={`text-xs font-bold font-tech ${channelCounts.WHATSAPP >= effectiveLimits.WHATSAPP ? 'text-amber-400' : 'text-white'}`}>
+                {channelCounts.WHATSAPP} / {effectiveLimits.WHATSAPP}
+              </span>
+            )}
           </div>
 
           <div className="p-2.5 rounded-xl bg-[#080C14] border border-[#141B29] flex items-center justify-between">
@@ -342,9 +354,13 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
               </span>
               <span className="text-xs text-slate-300 font-tech">TikTok</span>
             </div>
-            <span className={`text-xs font-bold font-tech ${effectiveLimits.TIKTOK === 0 ? 'text-slate-500' : channelCounts.TIKTOK >= effectiveLimits.TIKTOK ? 'text-amber-400' : 'text-white'}`}>
-              {effectiveLimits.TIKTOK === 0 ? '0 (No incl.)' : `${channelCounts.TIKTOK} / ${effectiveLimits.TIKTOK}`}
-            </span>
+            {effectiveLimits.TIKTOK <= 0 ? (
+              <span className="text-xs font-semibold font-tech text-slate-500">No incluida</span>
+            ) : (
+              <span className={`text-xs font-bold font-tech ${channelCounts.TIKTOK >= effectiveLimits.TIKTOK ? 'text-amber-400' : 'text-white'}`}>
+                {channelCounts.TIKTOK} / {effectiveLimits.TIKTOK}
+              </span>
+            )}
           </div>
         </div>
       </div>
