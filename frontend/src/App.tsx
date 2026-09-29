@@ -137,7 +137,7 @@ function AppContent({ user }: { user: AuthUser }) {
       axios
         .get('/api/v1/channels', { params: { workspaceId } })
         .then((res) => {
-          if (Array.isArray(res.data) && res.data.length > 0) {
+          if (Array.isArray(res.data)) {
             setChannels(res.data);
             localStorage.setItem(`korevx_channels_${workspaceId}`, JSON.stringify(res.data));
           }
@@ -807,7 +807,7 @@ function AppContent({ user }: { user: AuthUser }) {
     const loadFromApi = async () => {
       try {
         const data = await api.getConversations({ workspaceId });
-        if (data && Array.isArray(data) && data.length > 0) {
+        if (data && Array.isArray(data)) {
           setConversations(data);
         }
       } catch (e) {

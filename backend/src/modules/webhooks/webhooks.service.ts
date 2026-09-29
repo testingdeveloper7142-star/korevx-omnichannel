@@ -36,8 +36,13 @@ export class WebhooksService {
       channel = await this.prisma.channelAccount.findFirst({
         where: {
           platform: event.platform as any,
-          externalAccountId: event.recipientExternalId,
+          OR: [
+            { externalAccountId: event.recipientExternalId },
+            { accountHandle: event.recipientExternalId },
+            { accountHandle: `@${event.recipientExternalId}` },
+          ],
         },
+        orderBy: { updatedAt: 'desc' },
       });
     }
 

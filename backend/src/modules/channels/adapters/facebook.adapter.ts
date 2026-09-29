@@ -41,9 +41,15 @@ export class FacebookAdapter implements ISocialChannelAdapter {
     if (!rawPayload || !rawPayload.entry) return events;
 
     for (const entry of rawPayload.entry) {
-      // 1. Mensajes Directos (Messenger)
-      if (entry.messaging && Array.isArray(entry.messaging)) {
-        for (const msgItem of entry.messaging) {
+      // 1. Mensajes Directos (Messenger y Standby / Handover Protocol)
+      const messagingList = Array.isArray(entry.messaging)
+        ? entry.messaging
+        : Array.isArray(entry.standby)
+        ? entry.standby
+        : [];
+
+      if (messagingList.length > 0) {
+        for (const msgItem of messagingList) {
           if (msgItem.message && !msgItem.message.is_echo) {
             const senderId = msgItem.sender?.id || 'unknown';
             const messageId = msgItem.message.mid || `fb_${Date.now()}`;

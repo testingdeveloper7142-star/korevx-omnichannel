@@ -118,7 +118,12 @@ export class ChannelsService {
       data.accountName = dto.accountName.trim();
     }
     if (dto.accountHandle !== undefined) {
-      data.accountHandle = dto.accountHandle.trim();
+      const cleanH = dto.accountHandle.trim();
+      data.accountHandle = cleanH;
+      const cleanPageId = cleanH.replace(/^@/, '');
+      if (/^\d{5,}$/.test(cleanPageId)) {
+        data.externalAccountId = cleanPageId;
+      }
     }
     if (dto.accessToken !== undefined) {
       data.accessToken = dto.accessToken.trim() || undefined;
@@ -147,7 +152,35 @@ export class ChannelsService {
     accountHandle?: string;
     accessToken?: string;
   }) {
-    // 0. Si ya existe un canal con el mismo handle o nombre para esta plataforma en este workspace, actualizarlo y reactivarlo
+    const cleanExtCandidate = dto.accountHandle ? dto.accountHandle.replace(/^@/, '').trim() : '';
+    const isCandidatePageId = /^\d{5,}$/.test(cleanExtCandidate);
+    const candidateExtId = isCandidatePageId ? cleanExtCandidate : null;
+
+    // 0. Si ya existe un canal con el mismo externalAccountId para esta plataforma, transferir o reactivar
+    if (candidateExtId) {
+      const existingByExt = await this.prisma.channelAccount.findFirst({
+        where: {
+          platform: dto.platform,
+          externalAccountId: candidateExtId,
+        },
+      });
+
+      if (existingByExt) {
+        return this.prisma.channelAccount.update({
+          where: { id: existingByExt.id },
+          data: {
+            workspaceId: dto.workspaceId,
+            accountName: dto.accountName.trim(),
+            accountHandle: dto.accountHandle?.trim() || existingByExt.accountHandle,
+            accessToken: dto.accessToken?.trim() || existingByExt.accessToken,
+            isActive: true,
+            connectedAt: new Date(),
+          },
+        });
+      }
+    }
+
+    // Si ya existe un canal con el mismo handle o nombre para esta plataforma en este workspace, actualizarlo y reactivarlo
     const existingChannel = await this.prisma.channelAccount.findFirst({
       where: {
         workspaceId: dto.workspaceId,
@@ -166,6 +199,7 @@ export class ChannelsService {
           accountName: dto.accountName.trim(),
           accountHandle: dto.accountHandle?.trim() || existingChannel.accountHandle,
           accessToken: dto.accessToken?.trim() || existingChannel.accessToken,
+          ...(candidateExtId ? { externalAccountId: candidateExtId } : {}),
           isActive: true,
           connectedAt: new Date(),
         },
@@ -211,7 +245,7 @@ export class ChannelsService {
       }
     }
 
-    const extId = `ext-${dto.platform.toLowerCase()}-${Date.now()}`;
+    const extId = candidateExtId || `ext-${dto.platform.toLowerCase()}-${Date.now()}`;
     return this.prisma.channelAccount.create({
       data: {
         workspaceId: dto.workspaceId,
@@ -227,25 +261,32 @@ export class ChannelsService {
 
   async deleteChannel(id: string) {
     try {
-      const existing = await this.prisma.channelAccount.findUnique({ where: { id } });
-      if (existing) {
-        await this.prisma.channelAccount.delete({ where: { id } });
-        return { success: true };
-      }
-
-      const fallback = await this.prisma.channelAccount.findFirst({
+      const channel = await this.prisma.channelAccount.findFirst({
         where: {
           OR: [
+            { id },
             { externalAccountId: id },
             { accountHandle: id },
           ],
         },
       });
-      if (fallback) {
-        await this.prisma.channelAccount.delete({ where: { id: fallback.id } });
-      }
+
+      if (!channel) return { success: true };
+
+      // Eliminar mensajes y conversaciones asociadas para evitar fallo por clave foránea
+      await this.prisma.message.deleteMany({
+        where: { conversation: { channelAccountId: channel.id } },
+      });
+      await this.prisma.conversation.deleteMany({
+        where: { channelAccountId: channel.id },
+      });
+      await this.prisma.channelAccount.delete({
+        where: { id: channel.id },
+      });
+
       return { success: true };
-    } catch {
+    } catch (err) {
+      this.logger.error(`Error borrando canal ${id}: ${err.message}`);
       return { success: true };
     }
   }
