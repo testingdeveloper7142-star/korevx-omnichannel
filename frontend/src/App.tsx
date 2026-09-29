@@ -725,7 +725,19 @@ function AppContent({ user }: { user: AuthUser }) {
     });
   };
 
-  const handleDeleteChannel = (channelId: string) => {
+  const handleRefreshChannels = () => {
+    axios
+      .get('/api/v1/channels', { params: { workspaceId } })
+      .then((res) => {
+        if (Array.isArray(res.data)) {
+          setChannels(res.data);
+          localStorage.setItem(`korevx_channels_${workspaceId}`, JSON.stringify(res.data));
+        }
+      })
+      .catch(() => {});
+  };
+
+  const handleDeleteChannel = async (channelId: string) => {
     const targetChannel = channels.find((c) => c.id === channelId);
     const chanName = targetChannel ? targetChannel.accountName : 'Canal';
     const chanPlat = targetChannel ? targetChannel.platform : 'RED_SOCIAL';
@@ -733,6 +745,12 @@ function AppContent({ user }: { user: AuthUser }) {
     localDeletedChannelIdsRef.current.set(channelId, Date.now());
     setChannels((prev) => prev.filter((c) => c.id !== channelId));
     socketService.emitChannelDelete(channelId);
+
+    try {
+      await axios.delete(`/api/v1/channels/${channelId}`);
+    } catch (err) {
+      console.warn('Backend deleteChannel error:', err);
+    }
 
     logAuditEvent(
       'CHANNEL_DELETED',
@@ -1780,7 +1798,7 @@ function AppContent({ user }: { user: AuthUser }) {
             <ChannelsManager
               channels={channels}
               channelLimits={currentEnterpriseLimits}
-              onChannelRefresh={() => {}}
+              onChannelRefresh={handleRefreshChannels}
               onToggleChannelStatus={handleToggleChannelStatus}
               onAddChannel={handleAddChannel}
               onDeleteChannel={handleDeleteChannel}

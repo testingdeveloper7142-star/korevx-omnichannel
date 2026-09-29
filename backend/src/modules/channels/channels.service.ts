@@ -104,6 +104,31 @@ export class ChannelsService {
     accountHandle?: string;
     accessToken?: string;
   }) {
+    // 0. Si ya existe un canal con el mismo handle o nombre para esta plataforma en este workspace, actualizarlo y reactivarlo
+    const existingChannel = await this.prisma.channelAccount.findFirst({
+      where: {
+        workspaceId: dto.workspaceId,
+        platform: dto.platform,
+        OR: [
+          { accountName: { equals: dto.accountName.trim(), mode: 'insensitive' as const } },
+          ...(dto.accountHandle ? [{ accountHandle: { equals: dto.accountHandle.trim(), mode: 'insensitive' as const } }] : []),
+        ],
+      },
+    });
+
+    if (existingChannel) {
+      return this.prisma.channelAccount.update({
+        where: { id: existingChannel.id },
+        data: {
+          accountName: dto.accountName.trim(),
+          accountHandle: dto.accountHandle?.trim() || existingChannel.accountHandle,
+          accessToken: dto.accessToken?.trim() || existingChannel.accessToken,
+          isActive: true,
+          connectedAt: new Date(),
+        },
+      });
+    }
+
     // 1. Validar cuota permitida para esta red social en este workspace
     const workspace = await this.prisma.workspace.findUnique({
       where: { id: dto.workspaceId },
@@ -159,7 +184,23 @@ export class ChannelsService {
 
   async deleteChannel(id: string) {
     try {
-      await this.prisma.channelAccount.delete({ where: { id } });
+      const existing = await this.prisma.channelAccount.findUnique({ where: { id } });
+      if (existing) {
+        await this.prisma.channelAccount.delete({ where: { id } });
+        return { success: true };
+      }
+
+      const fallback = await this.prisma.channelAccount.findFirst({
+        where: {
+          OR: [
+            { externalAccountId: id },
+            { accountHandle: id },
+          ],
+        },
+      });
+      if (fallback) {
+        await this.prisma.channelAccount.delete({ where: { id: fallback.id } });
+      }
       return { success: true };
     } catch {
       return { success: true };
