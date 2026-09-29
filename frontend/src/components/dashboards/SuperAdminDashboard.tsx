@@ -1218,6 +1218,21 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                 <i className="fa-solid fa-server text-xs"></i>
                 <span>Ver Tickets</span>
               </button>
+              <button
+                onClick={() => {
+                  if (window.confirm('¿Finalizar sesión de soporte técnico y cerrar el acceso a las conversaciones de esta empresa?')) {
+                    localStorage.setItem('korevx_support_mode', 'false');
+                    localStorage.removeItem('korevx_support_mode_info');
+                    window.dispatchEvent(new CustomEvent('korevx_support_mode_updated', { detail: { active: false } }));
+                    setActiveSection('governance');
+                  }
+                }}
+                className="px-3.5 py-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-500/40 text-xs font-semibold transition flex items-center gap-2"
+                title="Finalizar sesión de soporte técnico"
+              >
+                <i className="fa-solid fa-arrow-right-from-bracket text-xs text-rose-400"></i>
+                <span>Finalizar Soporte</span>
+              </button>
             </div>
           </div>
 

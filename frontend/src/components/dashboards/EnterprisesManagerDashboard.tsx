@@ -193,6 +193,22 @@ export const EnterprisesManagerDashboard: React.FC = () => {
         try {
           localStorage.setItem('korevx_custom_enterprises', JSON.stringify(merged));
         } catch {}
+
+        // Limpiar sesión de soporte fantasma si la empresa ya fue borrada
+        try {
+          const supportInfoStr = localStorage.getItem('korevx_support_mode_info');
+          if (supportInfoStr) {
+            const sInfo = JSON.parse(supportInfoStr);
+            if (sInfo && sInfo.enterpriseId && sInfo.enterpriseId !== 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc') {
+              const stillExists = merged.some((e: any) => e.id === sInfo.enterpriseId || (sInfo.enterpriseName && e.name?.toLowerCase() === sInfo.enterpriseName.toLowerCase()));
+              if (!stillExists) {
+                localStorage.setItem('korevx_support_mode', 'false');
+                localStorage.removeItem('korevx_support_mode_info');
+                window.dispatchEvent(new CustomEvent('korevx_support_mode_updated', { detail: { active: false } }));
+              }
+            }
+          }
+        } catch {}
       }
     } catch (err) {
       console.warn('Backend listEnterprises offline, usando localStorage');
@@ -695,6 +711,22 @@ export const EnterprisesManagerDashboard: React.FC = () => {
       localStorage.removeItem(`korevx_channels_${ent.id}`);
       localStorage.removeItem(`korevx_channel_limits_${ent.id}`);
       localStorage.removeItem(`korevx_agents_${ent.id}`);
+      localStorage.removeItem(`korevx_support_mode_${ent.id}`);
+      localStorage.removeItem(`korevx_company_profile_${ent.id}`);
+      localStorage.removeItem(`korevx_max_operators_${ent.id}`);
+
+      // PURGAR SESIÓN DE MODO SOPORTE SI PERTENECÍA A ESTA EMPRESA
+      try {
+        const supportInfoStr = localStorage.getItem('korevx_support_mode_info');
+        if (supportInfoStr) {
+          const sInfo = JSON.parse(supportInfoStr);
+          if (sInfo.enterpriseId === ent.id || (sInfo.enterpriseName && sInfo.enterpriseName.toLowerCase() === ent.name.toLowerCase())) {
+            localStorage.setItem('korevx_support_mode', 'false');
+            localStorage.removeItem('korevx_support_mode_info');
+            window.dispatchEvent(new CustomEvent('korevx_support_mode_updated', { detail: { active: false } }));
+          }
+        }
+      } catch (e) {}
 
       soundManager.playWarning();
       setEnterpriseToDelete(null);

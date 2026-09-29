@@ -8,6 +8,7 @@ interface CompanySettingsDashboardProps {
   onClearCompanyConversations?: () => void;
   channelLimits?: { FACEBOOK: number; INSTAGRAM: number; WHATSAPP: number; TIKTOK: number };
   maxOperators?: number;
+  onNavigateToAudit?: () => void;
 }
 
 export const CompanySettingsDashboard: React.FC<CompanySettingsDashboardProps> = ({
@@ -15,6 +16,7 @@ export const CompanySettingsDashboard: React.FC<CompanySettingsDashboardProps> =
   onClearCompanyConversations,
   channelLimits: propChannelLimits,
   maxOperators: propMaxOperators,
+  onNavigateToAudit,
 }) => {
   const { user } = useAuth();
   const workspaceId = user?.workspaceId || 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc';
@@ -523,9 +525,22 @@ export const CompanySettingsDashboard: React.FC<CompanySettingsDashboardProps> =
                 Permisos de Soporte & Auditoría Externa
               </h3>
             </div>
-            <span className="text-[11px] font-tech text-slate-400">
-              Marco Regulatorio: <strong>Ley 1581 de 2012 (Habeas Data)</strong>
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] font-tech text-slate-400">
+                Marco Regulatorio: <strong>Ley 1581 de 2012 (Habeas Data)</strong>
+              </span>
+              {onNavigateToAudit && (
+                <button
+                  type="button"
+                  onClick={onNavigateToAudit}
+                  className="px-3 py-1 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-[#00F0FF]/40 text-[#00F0FF] text-xs font-bold font-tech flex items-center gap-1.5 transition shadow-sm"
+                  title="Consultar la bitácora completa de auditoría de tu empresa"
+                >
+                  <i className="fa-solid fa-clipboard-list text-xs"></i>
+                  <span>Ver Bitácora de Auditoría</span>
+                </button>
+              )}
+            </div>
           </div>
 
           <p className="text-xs text-slate-400 leading-relaxed font-tech">

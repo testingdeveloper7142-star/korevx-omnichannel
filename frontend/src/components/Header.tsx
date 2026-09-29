@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { AppNotification } from '../types';
 import { soundManager } from '../utils/audio';
 
-export type MainViewType = 'inbox' | 'dashboard' | 'channels' | 'tickets' | 'admin' | 'superadmin' | 'enterprises' | 'settings';
+export type MainViewType = 'inbox' | 'dashboard' | 'channels' | 'tickets' | 'admin' | 'superadmin' | 'enterprises' | 'settings' | 'audit';
 
 interface HeaderProps {
   currentView: MainViewType;
@@ -189,18 +189,34 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {(isSupportModeActive || supportModeInfo?.active) && (
-              <button
-                onClick={() => {
-                  onViewChange('superadmin');
-                  if (onOpenSupportConsole) onOpenSupportConsole();
-                }}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition bg-amber-950/40 border border-amber-500/60 text-amber-300 hover:bg-amber-900/50 shadow-sm shadow-amber-500/20 animate-pulse"
-                title={`Modo Soporte Técnico Autorizado: ${supportModeInfo?.enterpriseName || 'Empresa'}`}
-              >
-                <i className="fa-solid fa-wrench text-amber-400 text-xs"></i>
-                <span>Soporte: {supportModeInfo?.enterpriseName || 'Empresa'}</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-              </button>
+              <div className="flex items-center gap-1 bg-amber-950/40 border border-amber-500/60 rounded-lg p-0.5 shadow-sm shadow-amber-500/20 animate-pulse">
+                <button
+                  onClick={() => {
+                    onViewChange('superadmin');
+                    if (onOpenSupportConsole) onOpenSupportConsole();
+                  }}
+                  className="px-2.5 py-1 text-xs font-bold flex items-center gap-1.5 text-amber-300 hover:text-amber-100 transition"
+                  title={`Modo Soporte Técnico Autorizado: ${supportModeInfo?.enterpriseName || 'Empresa'}. Clic para abrir consola.`}
+                >
+                  <i className="fa-solid fa-wrench text-amber-400 text-xs"></i>
+                  <span>Soporte: {supportModeInfo?.enterpriseName || 'Empresa'}</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm('¿Finalizar sesión de soporte técnico para esta empresa?')) {
+                      localStorage.setItem('korevx_support_mode', 'false');
+                      localStorage.removeItem('korevx_support_mode_info');
+                      window.dispatchEvent(new CustomEvent('korevx_support_mode_updated', { detail: { active: false } }));
+                    }
+                  }}
+                  className="w-5 h-5 rounded hover:bg-amber-900/60 text-amber-400/80 hover:text-amber-200 flex items-center justify-center text-[10px] transition"
+                  title="Cerrar y revocar modo soporte"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
             )}
           </>
         ) : (
@@ -273,6 +289,18 @@ export const Header: React.FC<HeaderProps> = ({
                 >
                   <i className="fa-solid fa-user-shield text-xs text-amber-400"></i>
                   <span>Equipo</span>
+                </button>
+
+                <button
+                  onClick={() => onViewChange('audit')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition ${
+                    currentView === 'audit'
+                      ? 'text-cyan-300 bg-[#0E1524] border border-cyan-500/40 shadow-sm shadow-cyan-500/20'
+                      : 'text-slate-400 hover:text-cyan-300'
+                  }`}
+                >
+                  <i className="fa-solid fa-shield-halved text-xs text-cyan-400"></i>
+                  <span>Auditoría</span>
                 </button>
 
                 <button

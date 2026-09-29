@@ -17,6 +17,7 @@ interface ChannelsManagerProps {
   onToggleChannelStatus?: (channelId: string) => void;
   onAddChannel?: (newChannel: ChannelAccount) => void;
   onDeleteChannel?: (channelId: string) => void;
+  onUpdateChannelToken?: (channelId: string, token: string) => void;
 }
 
 export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
@@ -26,6 +27,7 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
   onToggleChannelStatus,
   onAddChannel,
   onDeleteChannel,
+  onUpdateChannelToken,
 }) => {
   const { user } = useAuth();
   const [isSimulating, setIsSimulating] = useState(false);
@@ -67,6 +69,9 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
       await axios.patch(`/api/v1/channels/${channelId}/token`, {
         accessToken: tokenInput.trim(),
       });
+      if (onUpdateChannelToken) {
+        onUpdateChannelToken(channelId, tokenInput.trim());
+      }
       alert('Token de acceso actualizado exitosamente. Ahora KorevX consultará el nombre y foto oficial del usuario.');
       setEditingTokenChannelId(null);
       setTokenInput('');
@@ -124,12 +129,15 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
     const channelId = `chan-${newPlatform.toLowerCase()}-${Date.now()}`;
     const cleanHandle = newAccountHandle.trim() || `@${newAccountName.toLowerCase().replace(/\s+/g, '')}`;
 
+    const effToken = newAccessToken.trim() || undefined;
+
     const createdChannel: ChannelAccount = {
       id: channelId,
       workspaceId: effWorkspaceId,
       platform: newPlatform,
       accountName: newAccountName.trim(),
       accountHandle: cleanHandle,
+      accessToken: effToken,
       isActive: true,
       connectedAt: new Date().toISOString(),
     };
@@ -141,10 +149,13 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
         platform: newPlatform,
         accountName: newAccountName.trim(),
         accountHandle: cleanHandle,
-        accessToken: newAccessToken.trim() || undefined,
+        accessToken: effToken,
       });
       if (res.data?.id) {
         createdChannel.id = res.data.id;
+      }
+      if (res.data?.accessToken) {
+        createdChannel.accessToken = res.data.accessToken;
       }
     } catch (err: any) {
       alert(err.response?.data?.message || 'Error vinculando el canal: cuota agotada o no permitida.');
@@ -354,7 +365,7 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
                   <button
                     onClick={() => {
                       setEditingTokenChannelId(chan.id);
-                      setTokenInput('');
+                      setTokenInput(chan.accessToken && !chan.accessToken.startsWith('live-token-') && !chan.accessToken.includes('demo') ? chan.accessToken : '');
                     }}
                     className="px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition bg-cyan-950/30 hover:bg-cyan-900/40 text-cyan-300 border border-cyan-800/40"
                     title="Configurar Token de Página de Meta / Graph API"

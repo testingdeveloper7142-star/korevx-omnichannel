@@ -14,6 +14,7 @@ import { EnterpriseMetricsDashboard } from './components/dashboards/EnterpriseMe
 import { EnterprisesManagerDashboard } from './components/dashboards/EnterprisesManagerDashboard';
 import { TicketsView } from './components/tickets/TicketsView';
 import { CompanySettingsDashboard } from './components/dashboards/CompanySettingsDashboard';
+import { CompanyAuditDashboard } from './components/dashboards/CompanyAuditDashboard';
 import { Conversation, PlatformType, InteractionType, ConversationStatus, ChannelAccount, AuditLogEntry, AppNotification, QuickResponse } from './types';
 import { api } from './services/api';
 import { socketService } from './services/socket';
@@ -707,6 +708,21 @@ function AppContent({ user }: { user: AuthUser }) {
       `El canal "${newChannel.accountName}" (${newChannel.platform}) está listo para recibir mensajes.`,
       'channel'
     );
+  };
+
+  const handleUpdateChannelToken = (channelId: string, token: string) => {
+    setChannels((prev) =>
+      prev.map((ch) => (ch.id === channelId ? { ...ch, accessToken: token } : ch))
+    );
+    setActiveConversation((prev) => {
+      if (prev && (prev.channelAccountId === channelId || prev.channelAccount?.id === channelId)) {
+        return {
+          ...prev,
+          channelAccount: prev.channelAccount ? { ...prev.channelAccount, accessToken: token } : prev.channelAccount,
+        };
+      }
+      return prev;
+    });
   };
 
   const handleDeleteChannel = (channelId: string) => {
@@ -1711,6 +1727,8 @@ function AppContent({ user }: { user: AuthUser }) {
                 onRespondAudit={(accepted) => handleRespondAudit(activeConversation.id, accepted)}
                 onLogInspection={handleLogInspection}
                 quickTemplates={quickTemplates}
+                channels={channels}
+                onUpdateChannelToken={handleUpdateChannelToken}
               />
             ) : (
               <InboxFeed
@@ -1766,6 +1784,7 @@ function AppContent({ user }: { user: AuthUser }) {
               onToggleChannelStatus={handleToggleChannelStatus}
               onAddChannel={handleAddChannel}
               onDeleteChannel={handleDeleteChannel}
+              onUpdateChannelToken={handleUpdateChannelToken}
             />
           )}
 
@@ -1782,6 +1801,10 @@ function AppContent({ user }: { user: AuthUser }) {
             />
           )}
 
+          {currentView === 'audit' && user.role === 'ADMIN' && (
+            <CompanyAuditDashboard />
+          )}
+
           {currentView === 'settings' && user.role === 'ADMIN' && (
             <CompanySettingsDashboard
               channelLimits={currentEnterpriseLimits}
@@ -1793,6 +1816,7 @@ function AppContent({ user }: { user: AuthUser }) {
                 setConversations([]);
                 setActiveConversation(null);
               }}
+              onNavigateToAudit={() => setCurrentView('audit')}
             />
           )}
 

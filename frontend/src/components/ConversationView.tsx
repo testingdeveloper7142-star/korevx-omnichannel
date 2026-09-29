@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
-import { Conversation, PlatformType, InteractionType, QuickResponse } from '../types';
+import { Conversation, PlatformType, InteractionType, QuickResponse, ChannelAccount } from '../types';
 import { ConversationTimeline } from './crm/ConversationTimeline';
 import { CreateTicketModal } from './tickets/CreateTicketModal';
 import { useAuth } from '../context/AuthContext';
@@ -28,6 +28,8 @@ interface ConversationViewProps {
   onShareWithAdmin?: () => void;
   onEndCollaboration?: () => void;
   quickTemplates?: QuickResponse[];
+  channels?: ChannelAccount[];
+  onUpdateChannelToken?: (channelId: string, token: string) => void;
 }
 
 export const ConversationView: React.FC<ConversationViewProps> = ({
@@ -48,6 +50,8 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   onShareWithAdmin,
   onEndCollaboration,
   quickTemplates = [],
+  channels,
+  onUpdateChannelToken,
 }) => {
   const { user } = useAuth();
   const [inputText, setInputText] = useState('');
@@ -102,6 +106,17 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   const [channelTokenInput, setChannelTokenInput] = useState('');
   const [isSavingToken, setIsSavingToken] = useState(false);
 
+  // Resolver token efectivo considerando tanto conversation.channelAccount como la lista de channels
+  const matchingChannel = channels?.find(
+    (c) => c.id === conversation?.channelAccountId || (conversation?.channelAccount && c.platform === conversation.channelAccount.platform)
+  );
+  const effectiveAccessToken = matchingChannel?.accessToken || conversation?.channelAccount?.accessToken;
+  const isMetaTokenMissing =
+    !effectiveAccessToken ||
+    effectiveAccessToken.includes('demo') ||
+    effectiveAccessToken.includes('live-token-') ||
+    effectiveAccessToken.includes('dummy');
+
   const handleSaveChannelToken = async () => {
     if (!channelTokenInput.trim() || !conversation?.channelAccountId) return;
     setIsSavingToken(true);
@@ -111,6 +126,9 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
       });
       if (conversation.channelAccount) {
         conversation.channelAccount.accessToken = channelTokenInput.trim();
+      }
+      if (onUpdateChannelToken) {
+        onUpdateChannelToken(conversation.channelAccountId, channelTokenInput.trim());
       }
       alert('¡Token de Meta guardado exitosamente! Ahora las respuestas se enviarán directamente a Facebook Messenger.');
       setIsTokenModalOpen(false);
@@ -699,10 +717,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
         )}
 
         {/* Banner de Advertencia si el Canal no tiene Page Access Token de Meta */}
-        {(!conversation.channelAccount?.accessToken ||
-          conversation.channelAccount.accessToken.includes('demo') ||
-          conversation.channelAccount.accessToken.includes('live-token-') ||
-          conversation.channelAccount.accessToken.includes('dummy')) && (
+        {isMetaTokenMissing && (
           <div className="bg-amber-950/80 border-b border-amber-500/50 px-4 sm:px-6 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs text-amber-200 flex-shrink-0 z-20">
             <div className="flex items-center gap-2.5">
               <span className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center flex-shrink-0 text-xs">
@@ -718,7 +733,11 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
             <button
               type="button"
               onClick={() => {
-                setChannelTokenInput(conversation.channelAccount?.accessToken || '');
+                setChannelTokenInput(
+                  effectiveAccessToken && !effectiveAccessToken.startsWith('live-token-') && !effectiveAccessToken.includes('demo') && !effectiveAccessToken.includes('dummy')
+                    ? effectiveAccessToken
+                    : ''
+                );
                 setIsTokenModalOpen(true);
               }}
               className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs font-tech flex items-center gap-1.5 shadow-md shadow-amber-500/20 flex-shrink-0 self-end sm:self-auto transition"
