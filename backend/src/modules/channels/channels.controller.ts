@@ -36,6 +36,21 @@ export class ChannelsController {
     return this.channelsService.createChannel(body);
   }
 
+  @Patch(':id')
+  @ApiOperation({ summary: 'Actualizar configuración del canal (nombre, handle, token)' })
+  async updateChannel(
+    @Param('id') id: string,
+    @Body()
+    dto: {
+      accountName?: string;
+      accountHandle?: string;
+      accessToken?: string;
+      isActive?: boolean;
+    },
+  ) {
+    return this.channelsService.updateChannel(id, dto);
+  }
+
   @Patch(':id/token')
   @ApiOperation({ summary: 'Actualizar token de acceso del canal' })
   async updateChannelToken(@Param('id') id: string, @Body() dto: { accessToken: string }) {

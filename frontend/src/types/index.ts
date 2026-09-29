@@ -160,6 +160,7 @@ export interface AuditLogEntry {
     | 'AUDIT_ACCEPTED'
     | 'AUDIT_REJECTED'
     | 'CHANNEL_CREATED'
+    | 'CHANNEL_UPDATED'
     | 'CHANNEL_TOGGLED'
     | 'CHANNEL_DELETED'
     | 'CONVERSATION_ASSIGNED'

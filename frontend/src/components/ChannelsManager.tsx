@@ -18,6 +18,7 @@ interface ChannelsManagerProps {
   onAddChannel?: (newChannel: ChannelAccount) => void;
   onDeleteChannel?: (channelId: string) => void;
   onUpdateChannelToken?: (channelId: string, token: string) => void;
+  onEditChannel?: (channelId: string, updatedData: Partial<ChannelAccount>) => void;
 }
 
 export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
@@ -28,6 +29,7 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
   onAddChannel,
   onDeleteChannel,
   onUpdateChannelToken,
+  onEditChannel,
 }) => {
   const { user } = useAuth();
   const [isSimulating, setIsSimulating] = useState(false);
@@ -61,6 +63,54 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
   const [editingTokenChannelId, setEditingTokenChannelId] = useState<string | null>(null);
   const [tokenInput, setTokenInput] = useState('');
   const [isUpdatingToken, setIsUpdatingToken] = useState(false);
+
+  // Modal para editar canal existente
+  const [editingChannel, setEditingChannel] = useState<ChannelAccount | null>(null);
+  const [editAccountName, setEditAccountName] = useState('');
+  const [editAccountHandle, setEditAccountHandle] = useState('');
+  const [editAccessToken, setEditAccessToken] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  const handleOpenEditModal = (chan: ChannelAccount) => {
+    setEditingChannel(chan);
+    setEditAccountName(chan.accountName);
+    setEditAccountHandle(chan.accountHandle || '');
+    setEditAccessToken(
+      chan.accessToken && !chan.accessToken.startsWith('live-token-') && !chan.accessToken.includes('demo') && !chan.accessToken.includes('dummy')
+        ? chan.accessToken
+        : ''
+    );
+  };
+
+  const handleSaveEditChannel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingChannel || !editAccountName.trim()) return;
+    setIsSavingEdit(true);
+
+    const cleanHandle = editAccountHandle.trim() || `@${editAccountName.trim().toLowerCase().replace(/\s+/g, '')}`;
+    const payload: Partial<ChannelAccount> = {
+      accountName: editAccountName.trim(),
+      accountHandle: cleanHandle,
+      accessToken: editAccessToken.trim() || undefined,
+    };
+
+    try {
+      await axios.patch(`/api/v1/channels/${editingChannel.id}`, payload);
+      if (onEditChannel) {
+        onEditChannel(editingChannel.id, payload);
+      }
+      if (payload.accessToken && onUpdateChannelToken) {
+        onUpdateChannelToken(editingChannel.id, payload.accessToken);
+      }
+      alert('¡Canal actualizado exitosamente!');
+      setEditingChannel(null);
+      onChannelRefresh();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error actualizando los datos del canal');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
 
   const handleUpdateToken = async (channelId: string) => {
     if (!tokenInput.trim()) return;
@@ -362,6 +412,15 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
                 </span>
 
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleOpenEditModal(chan)}
+                    className="px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition bg-blue-950/30 hover:bg-blue-900/40 text-blue-300 border border-blue-800/40"
+                    title="Editar nombre, identificador o token del canal"
+                  >
+                    <i className="fa-solid fa-pen-to-square text-xs"></i>
+                    <span>Editar</span>
+                  </button>
+
                   <button
                     onClick={() => {
                       setEditingTokenChannelId(chan.id);
@@ -710,6 +769,110 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
                   )}
                 </button>
               </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Modal para Editar Canal (Nombre, Page ID, Token) */}
+      {editingChannel &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+            <div className="w-full max-w-md bg-[#05080F] border border-[#141B29] rounded-2xl p-6 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-[#141B29]">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-8 h-8 rounded-xl bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center justify-center text-xs">
+                    <i className="fa-solid fa-pen-to-square"></i>
+                  </span>
+                  <div>
+                    <h4 className="text-sm font-bold text-white font-tech">Editar Canal / Red Social</h4>
+                    <p className="text-[11px] text-slate-400">{editingChannel.platform} · {editingChannel.accountName}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingChannel(null)}
+                  className="w-7 h-7 rounded-lg bg-[#080C14] hover:bg-[#121824] text-slate-400 hover:text-white border border-[#141B29] flex items-center justify-center text-xs transition"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEditChannel} className="space-y-4 text-xs font-tech">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase font-tech block mb-1.5">
+                    Nombre de la Cuenta o Fanpage <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editAccountName}
+                    onChange={(e) => setEditAccountName(e.target.value)}
+                    placeholder="ej: Tienda Oficial Bogotá"
+                    className="w-full bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl p-2.5 text-xs text-white placeholder-slate-500 font-tech"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase font-tech block mb-1.5">
+                    Identificador / Page ID / Handle
+                  </label>
+                  <input
+                    type="text"
+                    value={editAccountHandle}
+                    onChange={(e) => setEditAccountHandle(e.target.value)}
+                    placeholder="ej: 1170906462768971 o @miempresa"
+                    className="w-full bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl p-2.5 text-xs text-white placeholder-slate-500 font-mono"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    ID oficial de la página de Facebook o cuenta de Instagram en Meta Business Manager.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase font-tech block mb-1.5 flex items-center justify-between">
+                    <span>Token de Acceso de Página / Meta Token</span>
+                    <span className="text-[10px] text-cyan-400 font-normal">Para respuestas y foto real</span>
+                  </label>
+                  <input
+                    type="password"
+                    value={editAccessToken}
+                    onChange={(e) => setEditAccessToken(e.target.value)}
+                    placeholder="EAA... (Token de Página generado en Meta for Developers)"
+                    className="w-full bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl p-2.5 text-xs text-white placeholder-slate-500 font-mono"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Si dejas este campo vacío, conservará el token actual del canal.
+                  </p>
+                </div>
+
+                <div className="pt-2 flex justify-end gap-2.5 border-t border-[#141B29]">
+                  <button
+                    type="button"
+                    onClick={() => setEditingChannel(null)}
+                    className="px-4 py-2 rounded-xl bg-[#080C14] border border-[#141B29] text-slate-400 hover:text-white text-xs font-semibold"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingEdit || !editAccountName.trim()}
+                    className="px-5 py-2 rounded-xl bg-[#00F0FF] hover:bg-[#00D7E5] disabled:opacity-40 disabled:cursor-not-allowed text-[#030508] text-xs font-bold font-tech shadow-md shadow-[#00F0FF]/20 transition flex items-center gap-1.5"
+                  >
+                    {isSavingEdit ? (
+                      <>
+                        <i className="fa-solid fa-spinner fa-spin text-xs"></i>
+                        <span>Guardando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <i className="fa-solid fa-check text-xs"></i>
+                        <span>Guardar Cambios</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>,
           document.body

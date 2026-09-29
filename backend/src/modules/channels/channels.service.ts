@@ -90,6 +90,49 @@ export class ChannelsService {
     });
   }
 
+  async updateChannel(
+    id: string,
+    dto: {
+      accountName?: string;
+      accountHandle?: string;
+      accessToken?: string;
+      isActive?: boolean;
+    },
+  ) {
+    const channel = await this.prisma.channelAccount.findUnique({ where: { id } });
+    let targetId = id;
+    if (!channel) {
+      const fallback = await this.prisma.channelAccount.findFirst({
+        where: {
+          OR: [{ externalAccountId: id }, { accountHandle: id }],
+        },
+      });
+      if (!fallback) {
+        throw new NotFoundException(`Canal no encontrado`);
+      }
+      targetId = fallback.id;
+    }
+
+    const data: any = {};
+    if (dto.accountName && dto.accountName.trim()) {
+      data.accountName = dto.accountName.trim();
+    }
+    if (dto.accountHandle !== undefined) {
+      data.accountHandle = dto.accountHandle.trim();
+    }
+    if (dto.accessToken !== undefined) {
+      data.accessToken = dto.accessToken.trim() || undefined;
+    }
+    if (dto.isActive !== undefined) {
+      data.isActive = dto.isActive;
+    }
+
+    return this.prisma.channelAccount.update({
+      where: { id: targetId },
+      data,
+    });
+  }
+
   async updateChannelToken(id: string, accessToken: string) {
     return this.prisma.channelAccount.update({
       where: { id },

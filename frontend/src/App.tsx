@@ -737,6 +737,26 @@ function AppContent({ user }: { user: AuthUser }) {
       .catch(() => {});
   };
 
+  const handleEditChannel = (channelId: string, updatedData: Partial<ChannelAccount>) => {
+    setChannels((prev) =>
+      prev.map((ch) => (ch.id === channelId ? { ...ch, ...updatedData } : ch))
+    );
+    setActiveConversation((prev) => {
+      if (prev && (prev.channelAccountId === channelId || prev.channelAccount?.id === channelId)) {
+        return {
+          ...prev,
+          channelAccount: prev.channelAccount ? { ...prev.channelAccount, ...updatedData } : prev.channelAccount,
+        };
+      }
+      return prev;
+    });
+    logAuditEvent(
+      'CHANNEL_UPDATED',
+      `Canal "${updatedData.accountName || 'Canal'}" fue EDITADO/MODIFICADO por ${user?.fullName || 'Usuario'}.`,
+      'SUCCESS'
+    );
+  };
+
   const handleDeleteChannel = async (channelId: string) => {
     const targetChannel = channels.find((c) => c.id === channelId);
     const chanName = targetChannel ? targetChannel.accountName : 'Canal';
@@ -1803,6 +1823,7 @@ function AppContent({ user }: { user: AuthUser }) {
               onAddChannel={handleAddChannel}
               onDeleteChannel={handleDeleteChannel}
               onUpdateChannelToken={handleUpdateChannelToken}
+              onEditChannel={handleEditChannel}
             />
           )}
 
