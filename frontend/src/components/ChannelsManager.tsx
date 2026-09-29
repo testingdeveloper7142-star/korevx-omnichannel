@@ -143,12 +143,15 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
     setIsSimulating(true);
     setSimSuccess(false);
     try {
+      const targetChannel = channels.find((c) => c.platform === simulatedPlatform && c.isActive);
       await api.simulateWebhookEvent({
         platform: simulatedPlatform,
         interactionType: simulatedType,
         senderName: simulatedName,
         content: simulatedContent,
         postTitle: simulatedType === 'POST_COMMENT' ? 'Lanzamiento Nueva Versión KorevX 2026' : undefined,
+        channelId: targetChannel?.id,
+        recipientExternalId: targetChannel?.externalAccountId,
       });
       setSimSuccess(true);
       setTimeout(() => setSimSuccess(false), 3000);

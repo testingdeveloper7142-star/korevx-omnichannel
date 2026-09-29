@@ -14,7 +14,7 @@ import {
 export class InstagramAdapter implements ISocialChannelAdapter {
   readonly platform = PlatformType.INSTAGRAM;
   private readonly logger = new Logger(InstagramAdapter.name);
-  private readonly graphApiVersion = 'v19.0';
+  private readonly graphApiVersion = 'v21.0';
   private readonly baseUrl = 'https://graph.facebook.com';
 
   validateWebhookSignature(signature: string, rawBody: Buffer | string, secretKey: string): boolean {
@@ -41,9 +41,15 @@ export class InstagramAdapter implements ISocialChannelAdapter {
     if (!rawPayload || !rawPayload.entry) return events;
 
     for (const entry of rawPayload.entry) {
-      // 1. Mensajes Directos (Instagram Direct)
-      if (entry.messaging && Array.isArray(entry.messaging)) {
-        for (const msgItem of entry.messaging) {
+      // 1. Mensajes Directos (Instagram Direct y Standby / Handover Protocol)
+      const messagingList = Array.isArray(entry.messaging)
+        ? entry.messaging
+        : Array.isArray(entry.standby)
+        ? entry.standby
+        : [];
+
+      if (messagingList.length > 0) {
+        for (const msgItem of messagingList) {
           if (msgItem.message && !msgItem.message.is_echo) {
             const senderId = msgItem.sender?.id || 'unknown';
             const messageId = msgItem.message.mid || `ig_${Date.now()}`;
@@ -58,16 +64,35 @@ export class InstagramAdapter implements ISocialChannelAdapter {
               }
             }
 
+            const recipientAccountId = msgItem.recipient?.id || entry.id;
+
+            const senderNameCandidate =
+              msgItem.sender?.name ||
+              msgItem.sender?.username ||
+              msgItem.from?.username ||
+              (msgItem.sender?.first_name
+                ? `${msgItem.sender.first_name} ${msgItem.sender.last_name || ''}`.trim()
+                : null) ||
+              undefined;
+
+            const senderAvatarCandidate =
+              msgItem.sender?.profile_pic ||
+              msgItem.sender?.avatarUrl ||
+              msgItem.from?.profile_pic ||
+              undefined;
+
             events.push({
               platform: PlatformType.INSTAGRAM,
               channelAccountId,
               interactionType: InteractionType.DIRECT_MESSAGE,
               externalConversationId: `ig_thread_${senderId}`,
               externalMessageId: messageId,
+              recipientExternalId: recipientAccountId,
               sender: {
                 externalId: senderId,
-                name: `@instagram_user_${senderId.substring(0, 6)}`,
-                username: `user_${senderId.substring(0, 6)}`,
+                name: senderNameCandidate ? `@${senderNameCandidate.replace(/^@/, '')}` : `@instagram_user_${senderId.substring(0, 6)}`,
+                username: senderNameCandidate ? senderNameCandidate.replace(/^@/, '') : `user_${senderId.substring(0, 6)}`,
+                avatarUrl: senderAvatarCandidate,
               },
               content: text,
               mediaUrls: mediaUrls.length > 0 ? mediaUrls : undefined,
@@ -94,10 +119,11 @@ export class InstagramAdapter implements ISocialChannelAdapter {
               interactionType: InteractionType.POST_COMMENT,
               externalConversationId: `ig_post_${mediaId}`,
               externalMessageId: commentId,
+              recipientExternalId: entry.id,
               sender: {
                 externalId: senderId,
-                name: `@${senderUsername}`,
-                username: senderUsername,
+                name: `@${senderUsername.replace(/^@/, '')}`,
+                username: senderUsername.replace(/^@/, ''),
               },
               content: comment.text || '',
               postContext: {
@@ -156,7 +182,7 @@ export class InstagramAdapter implements ISocialChannelAdapter {
 
         return {
           success: true,
-          externalMessageId: res.data.message_id,
+          externalMessageId: res.data.message_id || res.data.id || `ig_out_${Date.now()}`,
           timestamp: new Date(),
         };
       }

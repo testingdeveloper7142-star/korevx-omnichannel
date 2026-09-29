@@ -52,6 +52,27 @@ export class WebhooksService {
       });
     }
 
+    // Si no hubo coincidencia exacta pero hay un único canal activo de esta plataforma en la base de datos, vincularlo
+    if (!channel) {
+      const candidateChannels = await this.prisma.channelAccount.findMany({
+        where: {
+          platform: event.platform as any,
+          isActive: true,
+        },
+      });
+
+      if (candidateChannels.length === 1) {
+        channel = candidateChannels[0];
+        if (event.recipientExternalId && channel.externalAccountId !== event.recipientExternalId) {
+          await this.prisma.channelAccount.update({
+            where: { id: channel.id },
+            data: { externalAccountId: event.recipientExternalId },
+          });
+          channel.externalAccountId = event.recipientExternalId;
+        }
+      }
+    }
+
     if (!channel) {
       const defaultWorkspace = await this.getOrCreateDefaultWorkspace();
 
@@ -127,39 +148,69 @@ export class WebhooksService {
 
     if (
       tokenForProfile &&
-      event.platform === PlatformType.FACEBOOK &&
       event.sender.externalId &&
       event.sender.externalId !== 'unknown'
     ) {
-      try {
-        const profileRes = await axios.get(`https://graph.facebook.com/v21.0/${event.sender.externalId}`, {
-          params: {
-            fields: 'first_name,last_name,name,profile_pic',
-            access_token: tokenForProfile,
-          },
-          timeout: 3500,
-        });
-        if (profileRes.data) {
-          if (profileRes.data.name) {
-            senderName = profileRes.data.name;
-          } else if (profileRes.data.first_name) {
-            senderName = `${profileRes.data.first_name} ${profileRes.data.last_name || ''}`.trim();
+      if (event.platform === PlatformType.FACEBOOK) {
+        try {
+          const profileRes = await axios.get(`https://graph.facebook.com/v21.0/${event.sender.externalId}`, {
+            params: {
+              fields: 'first_name,last_name,name,profile_pic',
+              access_token: tokenForProfile,
+            },
+            timeout: 3500,
+          });
+          if (profileRes.data) {
+            if (profileRes.data.name) {
+              senderName = profileRes.data.name;
+            } else if (profileRes.data.first_name) {
+              senderName = `${profileRes.data.first_name} ${profileRes.data.last_name || ''}`.trim();
+            }
+            if (profileRes.data.profile_pic) {
+              senderAvatarUrl = profileRes.data.profile_pic;
+            }
           }
-          if (profileRes.data.profile_pic) {
-            senderAvatarUrl = profileRes.data.profile_pic;
-          }
+        } catch (profileErr) {
+          this.logger.debug(
+            `No se pudo obtener perfil de Facebook (${event.sender.externalId}): ${profileErr.message}`,
+          );
         }
-      } catch (profileErr) {
-        this.logger.debug(
-          `No se pudo obtener perfil de Facebook (${event.sender.externalId}): ${profileErr.message}`,
-        );
+      } else if (event.platform === PlatformType.INSTAGRAM) {
+        try {
+          const profileRes = await axios.get(`https://graph.facebook.com/v21.0/${event.sender.externalId}`, {
+            params: {
+              fields: 'name,username,profile_pic',
+              access_token: tokenForProfile,
+            },
+            timeout: 3500,
+          });
+          if (profileRes.data) {
+            if (profileRes.data.name) {
+              senderName = profileRes.data.name;
+            } else if (profileRes.data.username) {
+              senderName = `@${profileRes.data.username}`;
+            }
+            if (profileRes.data.profile_pic) {
+              senderAvatarUrl = profileRes.data.profile_pic;
+            }
+          }
+        } catch (profileErr) {
+          this.logger.debug(
+            `No se pudo obtener perfil de Instagram (${event.sender.externalId}): ${profileErr.message}`,
+          );
+        }
       }
     }
 
     // Si aún no tenemos avatar válido, generamos un avatar estilizado con sus iniciales de ui-avatars.com
     if (!senderAvatarUrl) {
-      const cleanName = senderName && !senderName.startsWith('Usuario FB') ? senderName : 'Cliente Facebook';
-      senderAvatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=1877F2&color=fff&bold=true`;
+      const isIg = event.platform === PlatformType.INSTAGRAM;
+      const cleanName =
+        senderName && !senderName.startsWith('Usuario') && !senderName.startsWith('@instagram_user')
+          ? senderName.replace(/^@/, '')
+          : (isIg ? 'Instagram' : 'Facebook');
+      const bg = isIg ? 'E1306C' : '1877F2';
+      senderAvatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=${bg}&color=fff&bold=true`;
     }
 
     // 3. Gestionar Identidad Social y Contacto (CRM Unificado)
@@ -196,8 +247,8 @@ export class WebhooksService {
         include: { contact: true },
       });
     } else {
-      const hasRealName = senderName && !senderName.startsWith('Usuario FB');
-      const shouldUpdateName = hasRealName && contact.name.startsWith('Usuario FB');
+      const hasRealName = senderName && !senderName.startsWith('Usuario FB') && !senderName.startsWith('@instagram_user');
+      const shouldUpdateName = hasRealName && (contact.name.startsWith('Usuario FB') || contact.name.startsWith('@instagram_user'));
       const shouldUpdateAvatar = Boolean(senderAvatarUrl && senderAvatarUrl !== contact.avatarUrl);
 
       if (shouldUpdateName || shouldUpdateAvatar) {

@@ -114,15 +114,18 @@ export class WebhooksController {
       content: string;
       postTitle?: string;
       parentCommentId?: string;
+      channelId?: string;
+      recipientExternalId?: string;
     },
   ) {
     const senderId = dto.senderId || `sim_${Date.now()}`;
     const simulatedEvent: CanonicalNormalizedEvent = {
       platform: dto.platform || PlatformType.FACEBOOK,
-      channelAccountId: `channel_${dto.platform.toLowerCase()}`,
+      channelAccountId: dto.channelId || `channel_${dto.platform.toLowerCase()}`,
       interactionType: dto.interactionType || InteractionType.DIRECT_MESSAGE,
       externalConversationId: `sim_conv_${senderId}`,
       externalMessageId: `sim_msg_${Date.now()}`,
+      recipientExternalId: dto.recipientExternalId,
       sender: {
         externalId: senderId,
         name: dto.senderName || 'Usuario Simulado',

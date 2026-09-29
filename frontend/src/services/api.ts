@@ -96,6 +96,8 @@ export const api = {
     senderName: string;
     content: string;
     postTitle?: string;
+    channelId?: string;
+    recipientExternalId?: string;
   }) {
     try {
       const res = await axios.post(`${getBaseUrl()}/webhooks/simulate`, data);
