@@ -171,6 +171,8 @@ export const CompanySettingsDashboard: React.FC<CompanySettingsDashboardProps> =
         updatedAt: new Date().toISOString(),
       };
       localStorage.setItem(`korevx_company_profile_${workspaceId}`, JSON.stringify(profileToSave));
+      localStorage.setItem(`korevx_allow_external_audit_${workspaceId}`, String(allowExternalAudit));
+      localStorage.setItem(`korevx_support_mode_${workspaceId}`, String(allowSupportConsole));
 
       // 3. Actualizar en custom_enterprises si existe
       try {
@@ -529,17 +531,6 @@ export const CompanySettingsDashboard: React.FC<CompanySettingsDashboardProps> =
               <span className="text-[11px] font-tech text-slate-400">
                 Marco Regulatorio: <strong>Ley 1581 de 2012 (Habeas Data)</strong>
               </span>
-              {onNavigateToAudit && (
-                <button
-                  type="button"
-                  onClick={onNavigateToAudit}
-                  className="px-3 py-1 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-[#00F0FF]/40 text-[#00F0FF] text-xs font-bold font-tech flex items-center gap-1.5 transition shadow-sm"
-                  title="Consultar la bitácora completa de auditoría de tu empresa"
-                >
-                  <i className="fa-solid fa-clipboard-list text-xs"></i>
-                  <span>Ver Bitácora de Auditoría</span>
-                </button>
-              )}
             </div>
           </div>
 

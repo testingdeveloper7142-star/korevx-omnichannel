@@ -48,7 +48,13 @@ export interface EnterpriseItem {
   createdAt?: string;
 }
 
-export const EnterprisesManagerDashboard: React.FC = () => {
+export interface EnterprisesManagerDashboardProps {
+  onAuditEnterprise?: (enterprise: EnterpriseItem) => void;
+}
+
+export const EnterprisesManagerDashboard: React.FC<EnterprisesManagerDashboardProps> = ({
+  onAuditEnterprise,
+}) => {
   const [enterprises, setEnterprises] = useState<EnterpriseItem[]>(() => {
     try {
       const saved = localStorage.getItem('korevx_custom_enterprises');
@@ -1089,24 +1095,49 @@ export const EnterprisesManagerDashboard: React.FC = () => {
                 </div>
 
                 {/* Permisos de Ley 1581 (Soporte & Auditoría Externa) */}
-                <div className="flex items-center justify-between text-[10px] font-tech py-1.5 px-2.5 rounded-lg bg-[#05080F] border border-[#141B29] my-2">
-                  <span className="text-slate-400">Ley 1581:</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`px-2 py-0.5 rounded border text-[9px] font-bold ${
-                      localStorage.getItem(`korevx_support_mode_${ent.id}`) === 'true'
-                        ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
-                        : 'bg-slate-800 text-slate-500 border-slate-700'
-                    }`}>
-                      {localStorage.getItem(`korevx_support_mode_${ent.id}`) === 'true' ? '🟢 Soporte Autorizado' : '🔒 Soporte Bloqueado'}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded border text-[9px] font-bold ${
-                      localStorage.getItem(`korevx_allow_external_audit_${ent.id}`) === 'true'
-                        ? 'bg-cyan-500/15 text-[#00F0FF] border-cyan-500/40'
-                        : 'bg-slate-800 text-slate-500 border-slate-700'
-                    }`}>
-                      {localStorage.getItem(`korevx_allow_external_audit_${ent.id}`) === 'true' ? 'Audit. Externa ON' : 'Audit. OFF'}
-                    </span>
+                <div className="flex flex-col gap-2 text-[10px] font-tech py-2 px-2.5 rounded-lg bg-[#05080F] border border-[#141B29] my-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Ley 1581:</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`px-2 py-0.5 rounded border text-[9px] font-bold ${
+                        localStorage.getItem(`korevx_support_mode_${ent.id}`) === 'true'
+                          ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                          : 'bg-slate-800 text-slate-500 border-slate-700'
+                      }`}>
+                        {localStorage.getItem(`korevx_support_mode_${ent.id}`) === 'true' ? '🟢 Soporte Autorizado' : '🔒 Soporte Bloqueado'}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded border text-[9px] font-bold ${
+                        localStorage.getItem(`korevx_allow_external_audit_${ent.id}`) === 'true'
+                          ? 'bg-cyan-500/15 text-[#00F0FF] border-cyan-500/40'
+                          : 'bg-slate-800 text-slate-500 border-slate-700'
+                      }`}>
+                        {localStorage.getItem(`korevx_allow_external_audit_${ent.id}`) === 'true' ? 'Audit. Externa ON' : 'Audit. OFF'}
+                      </span>
+                    </div>
                   </div>
+
+                  {onAuditEnterprise && (
+                    <button
+                      onClick={() => onAuditEnterprise(ent)}
+                      className={`w-full py-1.5 px-2 rounded-lg text-[10px] font-bold font-tech flex items-center justify-center gap-1.5 transition ${
+                        localStorage.getItem(`korevx_allow_external_audit_${ent.id}`) === 'true'
+                          ? 'bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 shadow-sm shadow-cyan-500/20'
+                          : 'bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 text-slate-400'
+                      }`}
+                      title={
+                        localStorage.getItem(`korevx_allow_external_audit_${ent.id}`) === 'true'
+                          ? 'Empresa autorizó inspección. Clic para ver Bitácora de Auditoría & Logs forenses.'
+                          : 'Empresa mantiene bloqueada la auditoría externa por privacidad. Clic para ver detalle de restricción.'
+                      }
+                    >
+                      <i className={`fa-solid ${localStorage.getItem(`korevx_allow_external_audit_${ent.id}`) === 'true' ? 'fa-shield-halved text-cyan-400' : 'fa-lock text-slate-500'} text-xs`}></i>
+                      <span>
+                        {localStorage.getItem(`korevx_allow_external_audit_${ent.id}`) === 'true'
+                          ? '🔍 Ver Bitácora & Logs de Auditoría'
+                          : '🔒 Logs de Auditoría Bloqueados'}
+                      </span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Acciones de Gobernanza */}

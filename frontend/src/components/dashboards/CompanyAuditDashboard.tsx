@@ -23,10 +23,34 @@ interface AuditLogItem {
   } | null;
 }
 
-export const CompanyAuditDashboard: React.FC = () => {
+export interface CompanyAuditDashboardProps {
+  targetWorkspaceId?: string;
+  targetCompanyName?: string;
+  onBack?: () => void;
+}
+
+export const CompanyAuditDashboard: React.FC<CompanyAuditDashboardProps> = ({
+  targetWorkspaceId,
+  targetCompanyName,
+  onBack,
+}) => {
   const { user } = useAuth();
-  const workspaceId = user?.workspaceId || 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc';
-  const companyName = user?.workspaceName || 'Mi Empresa';
+  const workspaceId = targetWorkspaceId || user?.workspaceId || 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc';
+  const companyName = targetCompanyName || user?.workspaceName || 'Mi Empresa';
+
+  const isGlobalWorkspace = workspaceId === 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc';
+  const allowExternalAudit = isGlobalWorkspace || (() => {
+    try {
+      const explicit = localStorage.getItem(`korevx_allow_external_audit_${workspaceId}`);
+      if (explicit !== null) return explicit === 'true';
+      const profile = localStorage.getItem(`korevx_company_profile_${workspaceId}`);
+      if (profile) {
+        const parsed = JSON.parse(profile);
+        if (typeof parsed.allowExternalAudit === 'boolean') return parsed.allowExternalAudit;
+      }
+    } catch {}
+    return false;
+  })();
 
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
   const [totalCount, setTotalCount] = useState<number | null>(null);
@@ -155,25 +179,71 @@ export const CompanyAuditDashboard: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  if (!allowExternalAudit) {
+    return (
+      <section className="flex-1 bg-[#030508] p-6 overflow-y-auto flex items-center justify-center">
+        <div className="p-8 rounded-3xl bg-[#05080F] border border-rose-900/50 flex flex-col items-center text-center space-y-4 max-w-xl shadow-2xl shadow-rose-950/20">
+          <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-2xl text-rose-400">
+            <i className="fa-solid fa-lock"></i>
+          </div>
+          <div>
+            <span className="text-[10px] font-bold text-rose-400 font-tech uppercase tracking-widest border border-rose-500/30 px-2.5 py-0.5 rounded-full bg-rose-500/10">
+              Acceso Restringido • Ley 1581 de 2012
+            </span>
+            <h3 className="text-xl font-bold text-white font-tech mt-2">
+              Auditoría & Logs Bloqueados por "{companyName}"
+            </h3>
+          </div>
+          <p className="text-xs text-slate-400 leading-relaxed font-tech">
+            El Administrador de <strong>{companyName}</strong> no ha activado la opción <strong className="text-cyan-300">"Permitir Inspección de Auditoría Interna por Super Admin"</strong> desde su panel de Configuración.
+            <br /><br />
+            Por normatividad de protección de datos (Habeas Data) y secreto corporativo, el Super Administrador central no puede auditar estos registros hasta que la empresa autorice el acceso explícito.
+          </p>
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="mt-2 px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-tech font-bold transition flex items-center gap-2"
+            >
+              <i className="fa-solid fa-arrow-left text-xs"></i>
+              <span>Volver al Panel de Empresas</span>
+            </button>
+          )}
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="flex-1 bg-[#030508] p-4 sm:p-6 overflow-y-auto space-y-6">
       {/* Cabecera Principal */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#141B29]">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <span className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-[#00F0FF]/30 text-[#00F0FF] flex items-center justify-center text-sm shadow-sm shadow-[#00F0FF]/20">
-              <i className="fa-solid fa-shield-halved"></i>
-            </span>
-            <h2 className="text-xl font-bold text-white tracking-wide font-tech">
-              Bitácora de Auditoría & Trazabilidad
-            </h2>
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold font-tech">
-              Ley 1581 de 2012
-            </span>
+        <div className="flex items-center gap-3">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="px-3 py-2 rounded-xl bg-[#080C14] hover:bg-[#121824] border border-[#141B29] hover:border-[#00F0FF]/40 text-slate-300 hover:text-white text-xs font-tech font-bold transition flex items-center gap-1.5 flex-shrink-0"
+              title="Volver a la lista de empresas"
+            >
+              <i className="fa-solid fa-arrow-left text-xs"></i>
+              <span>Volver</span>
+            </button>
+          )}
+          <div>
+            <div className="flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-[#00F0FF]/30 text-[#00F0FF] flex items-center justify-center text-sm shadow-sm shadow-[#00F0FF]/20">
+                <i className="fa-solid fa-shield-halved"></i>
+              </span>
+              <h2 className="text-xl font-bold text-white tracking-wide font-tech">
+                Bitácora de Auditoría & Trazabilidad
+              </h2>
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold font-tech">
+                Ley 1581 de 2012
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-1 font-tech">
+              Registro inmutable y custodia digital de todas las acciones, transferencias, cambios de estado y accesos de <strong className="text-white">{companyName}</strong>.
+            </p>
           </div>
-          <p className="text-xs text-slate-400 mt-1 font-tech">
-            Registro inmutable y custodia digital de todas las acciones, transferencias, cambios de estado y accesos de <strong className="text-white">{companyName}</strong>.
-          </p>
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">

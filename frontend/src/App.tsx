@@ -67,6 +67,7 @@ function AppContent({ user }: { user: AuthUser }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [superAdminSection, setSuperAdminSection] = useState<'governance' | 'platformTickets' | 'supportConsole'>('governance');
   const [superAdminFilterWorkspace, setSuperAdminFilterWorkspace] = useState<string>('all');
+  const [auditedEnterprise, setAuditedEnterprise] = useState<{ id: string; name: string } | null>(null);
 
   // Filtros
   const [selectedChannel, setSelectedChannel] = useState<PlatformType | 'all'>('all');
@@ -76,6 +77,12 @@ function AppContent({ user }: { user: AuthUser }) {
 
   const workspaceId = user?.workspaceId || 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc';
   const isDefaultWorkspace = workspaceId === 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc';
+
+  useEffect(() => {
+    if (currentView === 'audit' && user.role !== 'SUPER_ADMIN') {
+      setCurrentView('inbox');
+    }
+  }, [currentView, user?.role]);
 
   // Estado de conversaciones con persistencia en localStorage aislada por empresa (Multi-Tenant)
   const [conversations, setConversations] = useState<Conversation[]>(() => {
@@ -1840,8 +1847,15 @@ function AppContent({ user }: { user: AuthUser }) {
             />
           )}
 
-          {currentView === 'audit' && user.role === 'ADMIN' && (
-            <CompanyAuditDashboard />
+          {currentView === 'audit' && user.role === 'SUPER_ADMIN' && (
+            <CompanyAuditDashboard
+              targetWorkspaceId={auditedEnterprise?.id}
+              targetCompanyName={auditedEnterprise?.name}
+              onBack={() => {
+                setAuditedEnterprise(null);
+                setCurrentView('enterprises');
+              }}
+            />
           )}
 
           {currentView === 'settings' && user.role === 'ADMIN' && (
@@ -1855,7 +1869,6 @@ function AppContent({ user }: { user: AuthUser }) {
                 setConversations([]);
                 setActiveConversation(null);
               }}
-              onNavigateToAudit={() => setCurrentView('audit')}
             />
           )}
 
@@ -1870,7 +1883,12 @@ function AppContent({ user }: { user: AuthUser }) {
           )}
 
           {currentView === 'enterprises' && user.role === 'SUPER_ADMIN' && (
-            <EnterprisesManagerDashboard />
+            <EnterprisesManagerDashboard
+              onAuditEnterprise={(ent) => {
+                setAuditedEnterprise(ent);
+                setCurrentView('audit');
+              }}
+            />
           )}
         </div>
       </main>

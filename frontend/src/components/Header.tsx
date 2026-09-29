@@ -292,18 +292,6 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
 
                 <button
-                  onClick={() => onViewChange('audit')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition ${
-                    currentView === 'audit'
-                      ? 'text-cyan-300 bg-[#0E1524] border border-cyan-500/40 shadow-sm shadow-cyan-500/20'
-                      : 'text-slate-400 hover:text-cyan-300'
-                  }`}
-                >
-                  <i className="fa-solid fa-shield-halved text-xs text-cyan-400"></i>
-                  <span>Auditoría</span>
-                </button>
-
-                <button
                   onClick={() => onViewChange('settings')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition ${
                     currentView === 'settings'
