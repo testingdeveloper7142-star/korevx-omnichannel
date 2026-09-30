@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { Conversation, PlatformType, InteractionType, QuickResponse, ChannelAccount } from '../types';
+import { getBaseUrl } from '../services/api';
 import { ConversationTimeline } from './crm/ConversationTimeline';
 import { CreateTicketModal } from './tickets/CreateTicketModal';
 import { useAuth } from '../context/AuthContext';
@@ -89,7 +90,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
       return;
     }
     try {
-      await axios.patch(`/api/v1/conversations/${conversation.id}/contact`, {
+      await axios.patch(`${getBaseUrl()}/conversations/${conversation.id}/contact`, {
         name: trimmed,
       });
       if (conversation.contact) {
@@ -121,7 +122,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
     if (!channelTokenInput.trim() || !conversation?.channelAccountId) return;
     setIsSavingToken(true);
     try {
-      await axios.patch(`/api/v1/channels/${conversation.channelAccountId}/token`, {
+      await axios.patch(`${getBaseUrl()}/channels/${conversation.channelAccountId}/token`, {
         accessToken: channelTokenInput.trim(),
       });
       if (conversation.channelAccount) {

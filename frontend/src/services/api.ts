@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { Conversation, ChannelAccount, ConversationStatus, PlatformType, InteractionType } from '../types';
 
-const getBaseUrl = () => {
+export const getBaseUrl = () => {
   if (typeof window !== 'undefined') {
     const custom = localStorage.getItem('korevx_backend_url');
     if (custom) return custom.replace(/\/$/, '') + '/api/v1';
@@ -81,13 +81,40 @@ export const api = {
     }
   },
 
-  async getChannels(): Promise<ChannelAccount[]> {
+  async getChannels(workspaceId?: string): Promise<ChannelAccount[]> {
     try {
-      const res = await axios.get(`${getBaseUrl()}/channels`, { timeout: 5000 });
+      const res = await axios.get(`${getBaseUrl()}/channels`, {
+        params: workspaceId ? { workspaceId } : undefined,
+        timeout: 20000,
+      });
       return Array.isArray(res.data) ? res.data : [];
-    } catch {
+    } catch (err) {
+      console.warn('Error obteniendo canales:', err);
       return [];
     }
+  },
+
+  async updateContactName(conversationId: string, name: string) {
+    const res = await axios.patch(
+      `${getBaseUrl()}/conversations/${conversationId}/contact`,
+      { name },
+      { timeout: 10000 },
+    );
+    return res.data;
+  },
+
+  async updateChannelToken(channelId: string, accessToken: string) {
+    const res = await axios.patch(
+      `${getBaseUrl()}/channels/${channelId}/token`,
+      { accessToken },
+      { timeout: 10000 },
+    );
+    return res.data;
+  },
+
+  async deleteChannel(channelId: string) {
+    const res = await axios.delete(`${getBaseUrl()}/channels/${channelId}`, { timeout: 10000 });
+    return res.data;
   },
 
   async simulateWebhookEvent(data: {
@@ -100,7 +127,7 @@ export const api = {
     recipientExternalId?: string;
   }) {
     try {
-      const res = await axios.post(`${getBaseUrl()}/webhooks/simulate`, data);
+      const res = await axios.post(`${getBaseUrl()}/webhooks/simulate`, data, { timeout: 15000 });
       return res.data;
     } catch {
       return null;

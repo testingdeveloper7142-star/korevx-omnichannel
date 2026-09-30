@@ -16,7 +16,7 @@ import { TicketsView } from './components/tickets/TicketsView';
 import { CompanySettingsDashboard } from './components/dashboards/CompanySettingsDashboard';
 import { CompanyAuditDashboard } from './components/dashboards/CompanyAuditDashboard';
 import { Conversation, PlatformType, InteractionType, ConversationStatus, ChannelAccount, AuditLogEntry, AppNotification, QuickResponse } from './types';
-import { api } from './services/api';
+import { api, getBaseUrl } from './services/api';
 import { socketService } from './services/socket';
 import { soundManager } from './utils/audio';
 import { ticketEventBus, TicketBroadcastEvent } from './utils/ticketEvents';
@@ -127,34 +127,58 @@ function AppContent({ user }: { user: AuthUser }) {
     }
   }, [agents, workspaceId, isDefaultWorkspace]);
 
-  // Estado compartido de Canales aislado por empresa
+  // Estado compartido de Canales aislado por empresa con persistencia resiliente
   const [channels, setChannels] = useState<ChannelAccount[]>(() => {
     const savedScoped = localStorage.getItem(`korevx_channels_${workspaceId}`);
     if (savedScoped) {
       try {
         const parsed = JSON.parse(savedScoped);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {}
     }
     return [];
   });
 
-  useEffect(() => {
-    if (workspaceId) {
-      axios
-        .get('/api/v1/channels', { params: { workspaceId } })
-        .then((res) => {
-          if (Array.isArray(res.data)) {
-            setChannels(res.data);
-            localStorage.setItem(`korevx_channels_${workspaceId}`, JSON.stringify(res.data));
-          }
-        })
-        .catch(() => {});
+  const fetchChannels = async () => {
+    if (!workspaceId) return;
+    try {
+      const data = await api.getChannels(workspaceId);
+      if (Array.isArray(data) && data.length > 0) {
+        setChannels(data);
+        localStorage.setItem(`korevx_channels_${workspaceId}`, JSON.stringify(data));
+      } else if (Array.isArray(data)) {
+        setChannels(data);
+      }
+    } catch (err) {
+      console.warn('Error cargando canales desde backend:', err);
     }
+  };
+
+  useEffect(() => {
+    fetchChannels();
+    // Reintentar si la lista está vacía (por si el backend en Render estaba iniciando)
+    const timer1 = setTimeout(() => {
+      fetchChannels();
+    }, 2500);
+    const timer2 = setTimeout(() => {
+      fetchChannels();
+    }, 6000);
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
   }, [workspaceId]);
 
   useEffect(() => {
-    if (Array.isArray(channels)) {
+    // Si cambia de vista a la bandeja o canales y no hay canales cargados, intentar obtenerlos
+    if ((currentView === 'inbox' || currentView === 'channels') && channels.length === 0) {
+      fetchChannels();
+    }
+  }, [currentView]);
+
+  useEffect(() => {
+    // Solo persistir si la lista contiene canales para no sobreescribir el cache con [] en arranques en frío
+    if (Array.isArray(channels) && channels.length > 0) {
       localStorage.setItem(`korevx_channels_${workspaceId}`, JSON.stringify(channels));
       if (isDefaultWorkspace) {
         localStorage.setItem('korevx_channels', JSON.stringify(channels));
@@ -733,21 +757,15 @@ function AppContent({ user }: { user: AuthUser }) {
   };
 
   const handleRefreshChannels = () => {
-    axios
-      .get('/api/v1/channels', { params: { workspaceId } })
-      .then((res) => {
-        if (Array.isArray(res.data)) {
-          setChannels(res.data);
-          localStorage.setItem(`korevx_channels_${workspaceId}`, JSON.stringify(res.data));
-        }
-      })
-      .catch(() => {});
+    fetchChannels();
   };
 
   const handleEditChannel = (channelId: string, updatedData: Partial<ChannelAccount>) => {
-    setChannels((prev) =>
-      prev.map((ch) => (ch.id === channelId ? { ...ch, ...updatedData } : ch))
-    );
+    setChannels((prev) => {
+      const updated = prev.map((ch) => (ch.id === channelId ? { ...ch, ...updatedData } : ch));
+      localStorage.setItem(`korevx_channels_${workspaceId}`, JSON.stringify(updated));
+      return updated;
+    });
     setActiveConversation((prev) => {
       if (prev && (prev.channelAccountId === channelId || prev.channelAccount?.id === channelId)) {
         return {
@@ -770,11 +788,15 @@ function AppContent({ user }: { user: AuthUser }) {
     const chanPlat = targetChannel ? targetChannel.platform : 'RED_SOCIAL';
 
     localDeletedChannelIdsRef.current.set(channelId, Date.now());
-    setChannels((prev) => prev.filter((c) => c.id !== channelId));
+    setChannels((prev) => {
+      const filtered = prev.filter((c) => c.id !== channelId);
+      localStorage.setItem(`korevx_channels_${workspaceId}`, JSON.stringify(filtered));
+      return filtered;
+    });
     socketService.emitChannelDelete(channelId);
 
     try {
-      await axios.delete(`/api/v1/channels/${channelId}`);
+      await api.deleteChannel(channelId);
     } catch (err) {
       console.warn('Backend deleteChannel error:', err);
     }

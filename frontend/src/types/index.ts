@@ -72,6 +72,7 @@ export interface ChannelAccount {
   platform: PlatformType;
   accountName: string;
   accountHandle?: string;
+  externalAccountId?: string;
   avatarUrl?: string;
   accessToken?: string;
   isActive: boolean;

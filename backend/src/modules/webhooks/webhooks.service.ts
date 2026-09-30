@@ -176,28 +176,59 @@ export class WebhooksService {
           );
         }
       } else if (event.platform === PlatformType.INSTAGRAM) {
-        try {
-          const profileRes = await axios.get(`https://graph.facebook.com/v21.0/${event.sender.externalId}`, {
-            params: {
-              fields: 'name,username,profile_pic',
-              access_token: tokenForProfile,
-            },
-            timeout: 3500,
-          });
-          if (profileRes.data) {
-            if (profileRes.data.name) {
-              senderName = profileRes.data.name;
-            } else if (profileRes.data.username) {
-              senderName = `@${profileRes.data.username}`;
+        const candidateTokens: string[] = [];
+        if (tokenForProfile && tokenForProfile.startsWith('EAA')) {
+          candidateTokens.push(tokenForProfile);
+        }
+
+        // Buscar si hay un canal de Facebook en el mismo workspace con token de página (EAA...)
+        const fbChannel = await this.prisma.channelAccount.findFirst({
+          where: {
+            workspaceId,
+            platform: 'FACEBOOK',
+            isActive: true,
+            accessToken: { startsWith: 'EAA' },
+          },
+        });
+        if (fbChannel?.accessToken && !candidateTokens.includes(fbChannel.accessToken)) {
+          candidateTokens.push(fbChannel.accessToken);
+        }
+
+        if (process.env.META_PAGE_ACCESS_TOKEN && !candidateTokens.includes(process.env.META_PAGE_ACCESS_TOKEN)) {
+          candidateTokens.push(process.env.META_PAGE_ACCESS_TOKEN);
+        }
+
+        if (tokenForProfile && !candidateTokens.includes(tokenForProfile)) {
+          candidateTokens.push(tokenForProfile);
+        }
+
+        let profileFound = false;
+        for (const token of candidateTokens) {
+          if (profileFound) break;
+          try {
+            const profileRes = await axios.get(`https://graph.facebook.com/v21.0/${event.sender.externalId}`, {
+              params: {
+                fields: 'name,username,profile_pic',
+                access_token: token,
+              },
+              timeout: 3500,
+            });
+            if (profileRes.data) {
+              if (profileRes.data.name) {
+                senderName = profileRes.data.name;
+              } else if (profileRes.data.username) {
+                senderName = `@${profileRes.data.username}`;
+              }
+              if (profileRes.data.profile_pic) {
+                senderAvatarUrl = profileRes.data.profile_pic;
+              }
+              profileFound = true;
             }
-            if (profileRes.data.profile_pic) {
-              senderAvatarUrl = profileRes.data.profile_pic;
-            }
+          } catch (profileErr) {
+            this.logger.debug(
+              `Intento con token falló para Instagram (${event.sender.externalId}): ${profileErr.response?.data?.error?.message || profileErr.message}`,
+            );
           }
-        } catch (profileErr) {
-          this.logger.debug(
-            `No se pudo obtener perfil de Instagram (${event.sender.externalId}): ${profileErr.message}`,
-          );
         }
       }
     }

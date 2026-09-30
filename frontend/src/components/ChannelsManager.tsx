@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { ChannelAccount, PlatformType, InteractionType } from '../types';
-import { api } from '../services/api';
+import { api, getBaseUrl } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 interface ChannelsManagerProps {
@@ -95,7 +95,7 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
     };
 
     try {
-      await axios.patch(`/api/v1/channels/${editingChannel.id}`, payload);
+      await axios.patch(`${getBaseUrl()}/channels/${editingChannel.id}`, payload);
       if (onEditChannel) {
         onEditChannel(editingChannel.id, payload);
       }
@@ -116,7 +116,7 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
     if (!tokenInput.trim()) return;
     setIsUpdatingToken(true);
     try {
-      await axios.patch(`/api/v1/channels/${channelId}/token`, {
+      await axios.patch(`${getBaseUrl()}/channels/${channelId}/token`, {
         accessToken: tokenInput.trim(),
       });
       if (onUpdateChannelToken) {
@@ -197,7 +197,7 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
 
     // 1. Persistir en backend y validar cuota
     try {
-      const res = await axios.post('/api/v1/channels', {
+      const res = await axios.post(`${getBaseUrl()}/channels`, {
         workspaceId: effWorkspaceId,
         platform: newPlatform,
         accountName: newAccountName.trim(),
