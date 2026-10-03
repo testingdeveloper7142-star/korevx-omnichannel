@@ -112,36 +112,26 @@ export const Header: React.FC<HeaderProps> = ({
           <i className="fa-solid fa-bars text-xs"></i>
         </button>
 
-        {/* Logo Oficial KorevX / Logo Corporativo Personalizado */}
+        {/* Logo Oficial KorevX */}
         <div className="flex items-center gap-3">
           <div className="relative group">
             <img
-              src={companyLogo || "/logo-korevx.png"}
-              alt={companyName || "KorevX"}
-              referrerPolicy="no-referrer"
+              src="/logo-korevx.png"
+              alt="KorevX Omnichannel"
               className="w-8 h-8 rounded-lg object-contain ring-1 ring-[#00F0FF]/40 shadow-sm shadow-[#00F0FF]/25 bg-black/40 p-0.5"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).src = "/logo-korevx.png";
-              }}
             />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-tech font-bold text-base tracking-wide text-white truncate max-w-[150px] sm:max-w-[220px]">
-                {companyName && user?.role !== 'SUPER_ADMIN' ? (
-                  companyName
-                ) : (
-                  <>
-                    Korev<span className="text-[#00F0FF]">X</span>
-                  </>
-                )}
+              <span className="font-tech font-bold text-base tracking-wide text-white">
+                Korev<span className="text-[#00F0FF]">X</span>
               </span>
               <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-[#00F0FF]/10 text-[#00F0FF] border border-[#00F0FF]/30 font-tech">
-                {user?.role === 'SUPER_ADMIN' ? 'Omnichannel' : 'Enterprise'}
+                Omnichannel
               </span>
             </div>
             <p className="text-[8px] font-bold tracking-[0.2em] uppercase text-slate-400 font-tech truncate max-w-[180px]">
-              {companyName && user?.role !== 'SUPER_ADMIN' ? 'KorevX Omnichannel' : 'Diseñando el Futuro'}
+              Plataforma Omnicanal
             </p>
           </div>
         </div>

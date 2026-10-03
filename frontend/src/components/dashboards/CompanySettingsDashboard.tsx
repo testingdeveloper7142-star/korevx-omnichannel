@@ -234,6 +234,12 @@ export const CompanySettingsDashboard: React.FC<CompanySettingsDashboardProps> =
         })
       );
 
+      window.dispatchEvent(
+        new CustomEvent('korevx_company_profile_updated', {
+          detail: { name: trimmedName, logoUrl: logoUrl.trim() },
+        })
+      );
+
       soundManager.playSuccess();
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 4000);

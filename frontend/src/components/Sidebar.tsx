@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { PlatformType, InteractionType, ConversationStatus } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useServerStatus } from '../services/serverHealth';
@@ -41,6 +41,48 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const isAgent = user?.role === 'AGENT';
   const serverStatus = useServerStatus();
 
+  const [companyLogo, setCompanyLogo] = useState<string | null>(null);
+  const [companyName, setCompanyName] = useState<string | null>(null);
+
+  const loadCompanyProfile = () => {
+    if (user?.workspaceId) {
+      try {
+        const savedProfile = localStorage.getItem(`korevx_company_profile_${user.workspaceId}`);
+        if (savedProfile) {
+          const parsed = JSON.parse(savedProfile);
+          if (parsed.logoUrl) setCompanyLogo(parsed.logoUrl);
+          if (parsed.companyName || parsed.name) setCompanyName(parsed.companyName || parsed.name);
+          return;
+        }
+        const savedEnts = localStorage.getItem('korevx_custom_enterprises');
+        if (savedEnts) {
+          const list = JSON.parse(savedEnts);
+          const found = list.find((e: any) => e.id === user.workspaceId);
+          if (found) {
+            if (found.logoUrl) setCompanyLogo(found.logoUrl);
+            if (found.name) setCompanyName(found.name);
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
+  useEffect(() => {
+    loadCompanyProfile();
+    const handleUpdate = (e: any) => {
+      if (e?.detail) {
+        if (e.detail.logoUrl !== undefined) setCompanyLogo(e.detail.logoUrl);
+        if (e.detail.name !== undefined) setCompanyName(e.detail.name);
+      } else {
+        loadCompanyProfile();
+      }
+    };
+    window.addEventListener('korevx_company_profile_updated', handleUpdate);
+    return () => window.removeEventListener('korevx_company_profile_updated', handleUpdate);
+  }, [user?.workspaceId]);
+
   const hasIgChannel = channels ? channels.some((c) => c.platform === 'INSTAGRAM') : false;
   const hasFbChannel = channels ? channels.some((c) => c.platform === 'FACEBOOK') : false;
   const hasTtChannel = channels ? channels.some((c) => c.platform === 'TIKTOK') : false;
@@ -50,6 +92,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const isFbActive = channels ? channels.some((c) => c.platform === 'FACEBOOK' && c.isActive) : false;
   const isTtActive = channels ? channels.some((c) => c.platform === 'TIKTOK' && c.isActive) : false;
   const isWaActive = channels ? channels.some((c) => c.platform === 'WHATSAPP' && c.isActive) : false;
+
+  const displayName = companyName || user?.workspaceName || 'KorevX Oficial';
 
   return (
     <>
@@ -68,13 +112,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Espacio de Trabajo / Empresa Asignada */}
         <div className="p-3 border-b border-[#111622] flex items-center justify-between">
           <div className="flex-1 flex items-center gap-2.5 p-2 rounded-xl bg-[#080C14] border border-[#141B29] text-left">
-            <div className="w-7 h-7 rounded-lg bg-[#0D1424] border border-[#00F0FF]/30 text-[#00F0FF] flex items-center justify-center font-tech font-bold text-xs flex-shrink-0">
-              {user?.workspaceName ? user.workspaceName.slice(0, 2).toUpperCase() : 'KX'}
-            </div>
+            {companyLogo ? (
+              <img
+                src={companyLogo}
+                alt={displayName}
+                className="w-7 h-7 rounded-lg object-contain ring-1 ring-[#00F0FF]/30 flex-shrink-0 bg-black/50 p-0.5"
+                onError={() => setCompanyLogo(null)}
+              />
+            ) : (
+              <div className="w-7 h-7 rounded-lg bg-[#0D1424] border border-[#00F0FF]/30 text-[#00F0FF] flex items-center justify-center font-tech font-bold text-xs flex-shrink-0">
+                {displayName.slice(0, 2).toUpperCase()}
+              </div>
+            )}
             <div className="truncate">
               <div className="flex items-center gap-1.5">
-                <p className="text-xs font-bold truncate text-white" title={user?.workspaceName}>
-                  {user?.workspaceName || 'KorevX Oficial'}
+                <p className="text-xs font-bold truncate text-white" title={displayName}>
+                  {displayName}
                 </p>
                 <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/15 text-[#10B981] font-semibold border border-emerald-500/30">
                   Online
