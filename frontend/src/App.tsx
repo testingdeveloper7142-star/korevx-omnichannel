@@ -18,6 +18,7 @@ import { CompanyAuditDashboard } from './components/dashboards/CompanyAuditDashb
 import { Conversation, PlatformType, InteractionType, ConversationStatus, ChannelAccount, AuditLogEntry, AppNotification, QuickResponse } from './types';
 import { api, getBaseUrl } from './services/api';
 import { socketService } from './services/socket';
+import { useServerStatus } from './services/serverHealth';
 import { soundManager } from './utils/audio';
 import { ticketEventBus, TicketBroadcastEvent } from './utils/ticketEvents';
 
@@ -60,6 +61,7 @@ const initialAgents: Agent[] = [];
 
 function AppContent({ user }: { user: AuthUser }) {
   const { logout, changePassword } = useAuth();
+  const serverStatus = useServerStatus();
   const [currentView, setCurrentView] = useState<MainViewType>(() => {
     if (user.role === 'SUPER_ADMIN') return 'superadmin';
     return 'inbox';
@@ -1767,6 +1769,25 @@ function AppContent({ user }: { user: AuthUser }) {
           setSuperAdminSection('supportConsole');
         }}
       />
+
+      {/* Banner discreto mientras el servidor en la nube arranca */}
+      {serverStatus !== 'online' && (
+        <div className="bg-gradient-to-r from-amber-950/80 via-[#0B1224] to-amber-950/80 border-b border-amber-500/30 px-4 py-2 flex items-center justify-between text-xs text-amber-300 font-tech z-30 shadow-lg shadow-amber-500/10">
+          <div className="flex items-center gap-2.5">
+            <i className="fa-solid fa-cloud-arrow-up animate-pulse text-amber-400 text-sm"></i>
+            <div>
+              <span className="font-bold text-amber-300">Reactivando servidor en la nube:</span>
+              <span className="text-slate-300 ml-1.5 text-[11px]">Tus canales guardados están activos. La conexión en vivo se completará en unos segundos.</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-28 bg-black/60 border border-amber-500/30 rounded-full h-2 overflow-hidden p-0.5">
+              <div className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full animate-pulse w-3/4 shadow-[0_0_8px_rgba(245,158,11,0.5)]"></div>
+            </div>
+            <span className="text-[10px] text-amber-400 font-bold font-mono">CONECTANDO</span>
+          </div>
+        </div>
+      )}
 
       <main className="flex-1 flex overflow-hidden relative z-10">
         {/* Barra lateral visible únicamente en la Bandeja */}
