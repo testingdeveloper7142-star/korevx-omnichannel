@@ -177,57 +177,61 @@ export class WebhooksService {
         }
       } else if (event.platform === PlatformType.INSTAGRAM) {
         const candidateTokens: string[] = [];
-        if (tokenForProfile && tokenForProfile.startsWith('EAA')) {
+        if (tokenForProfile) {
           candidateTokens.push(tokenForProfile);
         }
 
-        // Buscar si hay un canal de Facebook en el mismo workspace con token de página (EAA...)
-        const fbChannel = await this.prisma.channelAccount.findFirst({
+        // Buscar todos los canales activos del workspace (Instagram y Facebook)
+        const allChannels = await this.prisma.channelAccount.findMany({
           where: {
             workspaceId,
-            platform: 'FACEBOOK',
             isActive: true,
-            accessToken: { startsWith: 'EAA' },
           },
         });
-        if (fbChannel?.accessToken && !candidateTokens.includes(fbChannel.accessToken)) {
-          candidateTokens.push(fbChannel.accessToken);
+        for (const ch of allChannels) {
+          if (ch.accessToken && !candidateTokens.includes(ch.accessToken)) {
+            candidateTokens.push(ch.accessToken);
+          }
         }
 
         if (process.env.META_PAGE_ACCESS_TOKEN && !candidateTokens.includes(process.env.META_PAGE_ACCESS_TOKEN)) {
           candidateTokens.push(process.env.META_PAGE_ACCESS_TOKEN);
         }
 
-        if (tokenForProfile && !candidateTokens.includes(tokenForProfile)) {
-          candidateTokens.push(tokenForProfile);
-        }
-
         let profileFound = false;
+        // Intentar consultar tanto en graph.instagram.com como en graph.facebook.com
+        const endpoints = [
+          'https://graph.instagram.com/v21.0',
+          'https://graph.facebook.com/v21.0',
+        ];
+
         for (const token of candidateTokens) {
           if (profileFound) break;
-          try {
-            const profileRes = await axios.get(`https://graph.facebook.com/v21.0/${event.sender.externalId}`, {
-              params: {
-                fields: 'name,username,profile_pic',
-                access_token: token,
-              },
-              timeout: 3500,
-            });
-            if (profileRes.data) {
-              if (profileRes.data.name) {
-                senderName = profileRes.data.name;
-              } else if (profileRes.data.username) {
-                senderName = `@${profileRes.data.username}`;
+          for (const endpoint of endpoints) {
+            if (profileFound) break;
+            try {
+              const profileRes = await axios.get(`${endpoint}/${event.sender.externalId}`, {
+                params: {
+                  fields: 'name,username,profile_pic',
+                  access_token: token,
+                },
+                timeout: 4000,
+              });
+              if (profileRes.data) {
+                if (profileRes.data.username) {
+                  senderName = `@${profileRes.data.username}`;
+                } else if (profileRes.data.name) {
+                  senderName = profileRes.data.name;
+                }
+                if (profileRes.data.profile_pic) {
+                  senderAvatarUrl = profileRes.data.profile_pic;
+                }
+                profileFound = true;
+                this.logger.log(`Perfil de Instagram obtenido exitosamente para ${event.sender.externalId}: ${senderName}`);
               }
-              if (profileRes.data.profile_pic) {
-                senderAvatarUrl = profileRes.data.profile_pic;
-              }
-              profileFound = true;
+            } catch (profileErr) {
+              // Continuar con el siguiente endpoint/token
             }
-          } catch (profileErr) {
-            this.logger.debug(
-              `Intento con token falló para Instagram (${event.sender.externalId}): ${profileErr.response?.data?.error?.message || profileErr.message}`,
-            );
           }
         }
       }
