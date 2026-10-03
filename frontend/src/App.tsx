@@ -180,9 +180,15 @@ function AppContent({ user }: { user: AuthUser }) {
   }, [currentView]);
 
   useEffect(() => {
-    // Al despertar el backend en Render, sincronizar canales automáticamente
-    const handleServerOnline = () => {
+    // Al despertar el backend, sincronizar canales y conversaciones automáticamente
+    const handleServerOnline = async () => {
       fetchChannels();
+      try {
+        const liveConvs = await api.getConversations({ workspaceId });
+        if (Array.isArray(liveConvs) && liveConvs.length > 0) {
+          setConversations(liveConvs);
+        }
+      } catch {}
     };
     window.addEventListener('korevx_server_online', handleServerOnline);
     return () => {

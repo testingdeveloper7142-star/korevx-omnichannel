@@ -13,7 +13,7 @@ export const ServerWarmupOverlay: React.FC = () => {
     if (serverStatus === 'online') {
       if (isVisible) {
         setProgress(100);
-        setStepText('¡Servidor conectado exitosamente!');
+        setStepText('¡Servicios sincronizados y listos!');
         const fadeTimer = setTimeout(() => {
           setIsFadingOut(true);
           const hideTimer = setTimeout(() => {
@@ -37,11 +37,11 @@ export const ServerWarmupOverlay: React.FC = () => {
   useEffect(() => {
     if (!isVisible || serverStatus === 'online') return;
 
-    // Simulación fluida de avance mientras Render arranca el contenedor (30-40s)
+    // Simulación fluida de avance mientras arranca el backend
     const interval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 95) {
-          setStepText('Finalizando inicialización de base de datos...');
+          setStepText('Finalizando sincronización de módulos...');
           return 95;
         }
 
@@ -49,12 +49,12 @@ export const ServerWarmupOverlay: React.FC = () => {
         const inc = Math.max(0.4, remaining * 0.055);
         const next = Math.min(95, prev + inc);
 
-        if (next > 70) {
-          setStepText('Iniciando servicios y WebSocket...');
-        } else if (next > 40) {
-          setStepText('Reactivando contenedor en la nube...');
-        } else if (next > 20) {
-          setStepText('Despertando instancia en Render...');
+        if (next > 75) {
+          setStepText('Sincronizando bandejas y canales de mensajería...');
+        } else if (next > 50) {
+          setStepText('Estableciendo enlace seguro y WebSockets...');
+        } else if (next > 25) {
+          setStepText('Inicializando núcleo KorevX Omnichannel...');
         }
 
         return next;
@@ -72,49 +72,50 @@ export const ServerWarmupOverlay: React.FC = () => {
         isFadingOut ? 'opacity-0 pointer-events-none' : 'opacity-100'
       }`}
       style={{
-        backgroundColor: 'rgba(3, 5, 8, 0.78)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
+        backgroundColor: 'rgba(3, 5, 8, 0.82)',
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
       }}
     >
       {/* Tarjeta Central Glassmorphism */}
       <div className="relative max-w-md w-full bg-[#060A14]/90 border border-[#00F0FF]/30 rounded-3xl p-7 sm:p-9 shadow-[0_0_60px_rgba(0,240,255,0.18)] text-center overflow-hidden">
-        {/* Glow de fondo */}
+        {/* Glow ambiental de fondo */}
         <div className="absolute -top-24 -left-24 w-48 h-48 bg-[#00F0FF]/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Icono animado */}
-        <div className="relative mx-auto w-20 h-20 mb-5 flex items-center justify-center">
-          <div className="absolute inset-0 rounded-2xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 animate-pulse" />
-          <div className="absolute -inset-1.5 rounded-2xl border border-[#00F0FF]/20 animate-ping opacity-30" />
-          {serverStatus === 'online' ? (
-            <i className="fa-solid fa-circle-check text-4xl text-emerald-400 drop-shadow-[0_0_12px_rgba(52,211,153,0.8)]" />
-          ) : (
-            <i className="fa-solid fa-cloud-arrow-up text-3xl text-[#00F0FF] drop-shadow-[0_0_12px_rgba(0,240,255,0.8)] animate-bounce" />
-          )}
+        {/* Logo Oficial de KorevX con efectos de brillo */}
+        <div className="relative mx-auto w-20 h-20 mb-4 flex items-center justify-center">
+          <div className="absolute -inset-1.5 bg-gradient-to-r from-[#00F0FF] via-[#0072FF] to-[#00F0FF] rounded-2xl blur-md opacity-60 animate-pulse pointer-events-none" />
+          <img
+            src="/logo-korevx.png"
+            alt="KorevX Omnichannel"
+            className="relative w-16 h-16 rounded-2xl object-cover ring-1 ring-[#00F0FF]/60 shadow-2xl"
+          />
         </div>
 
-        {/* Título y subtítulo */}
+        {/* Título y subtítulo profesional */}
         <h2 className="text-xl sm:text-2xl font-bold font-tech text-white tracking-wide">
-          KorevX Omnichannel
+          Korev<span className="text-[#00F0FF]">X</span> Omnichannel
         </h2>
         <p className="text-xs text-[#00F0FF] font-tech uppercase tracking-widest mt-1">
-          {serverStatus === 'online' ? 'Servidor Listo' : 'Iniciando Servidor en la Nube'}
+          {serverStatus === 'online' ? 'CONEXIÓN ESTABLECIDA' : 'SINCRONIZANDO NÚCLEO OMNICANAL'}
         </p>
 
-        {/* Explicación amigable */}
+        {/* Mensaje profesional sin mención de hosting ni servidor gratuito */}
         <p className="text-xs text-slate-300/90 mt-3 leading-relaxed">
           {serverStatus === 'online'
-            ? '¡Conexión completada! Cargando interfaz en tiempo real...'
-            : 'El servidor gratuito entra en reposo tras periodos de inactividad. Estamos reactivando los servicios para ti; el acceso se habilitará en segundos.'}
+            ? '¡Conexión completada! Cargando módulos y datos en vivo...'
+            : 'Conectando con la infraestructura omnicanal y preparando el entorno seguro de trabajo.'}
         </p>
 
-        {/* Barra de progreso */}
+        {/* Barra de progreso con gradiente y porcentaje */}
         <div className="mt-6 space-y-2">
           <div className="flex items-center justify-between text-xs font-tech">
-            <span className="flex items-center gap-2 text-slate-400">
-              {serverStatus !== 'online' && (
+            <span className="flex items-center gap-2 text-slate-300">
+              {serverStatus !== 'online' ? (
                 <i className="fa-solid fa-spinner fa-spin text-[#00F0FF]" />
+              ) : (
+                <i className="fa-solid fa-circle-check text-emerald-400" />
               )}
               <span className="truncate max-w-[240px] text-left">{stepText}</span>
             </span>
@@ -128,20 +129,20 @@ export const ServerWarmupOverlay: React.FC = () => {
               className={`h-full rounded-full transition-all duration-500 ease-out ${
                 serverStatus === 'online'
                   ? 'bg-gradient-to-r from-emerald-400 to-[#00F0FF] shadow-[0_0_15px_rgba(52,211,153,0.8)]'
-                  : 'bg-gradient-to-r from-[#00F0FF] via-cyan-400 to-amber-400 shadow-[0_0_15px_rgba(0,240,255,0.7)]'
+                  : 'bg-gradient-to-r from-[#00F0FF] via-cyan-400 to-sky-400 shadow-[0_0_15px_rgba(0,240,255,0.7)]'
               }`}
               style={{ width: `${Math.round(progress)}%` }}
             />
           </div>
         </div>
 
-        {/* Pie de seguridad y garantía */}
+        {/* Pie de seguridad y garantía profesional */}
         <div className="mt-6 pt-4 border-t border-[#111A2E] flex items-center justify-between text-[11px] text-slate-400 font-tech">
           <span className="flex items-center gap-1.5 text-emerald-400">
             <i className="fa-solid fa-shield-halved"></i>
-            <span>Tus datos y canales están seguros</span>
+            <span>Infraestructura Segura Multi-Tenant</span>
           </span>
-          <span className="text-slate-500 font-mono">Render Cloud</span>
+          <span className="text-slate-400 font-tech">KorevX Core</span>
         </div>
       </div>
     </div>
