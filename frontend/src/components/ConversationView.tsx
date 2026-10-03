@@ -66,7 +66,12 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   const [isQuickDrawerOpen, setIsQuickDrawerOpen] = useState<boolean>(false);
 
   // Protecciones de datos de la conversación
-  const contactName = conversation?.contact?.name || 'Cliente';
+  const identity = conversation?.contact?.socialIdentities?.[0];
+  const igHandle = identity?.handle ? `@${identity.handle.replace(/^@/, '')}` : null;
+  const rawContactName = conversation?.contact?.name;
+  const isPlaceholder = !rawContactName || rawContactName.startsWith('@instagram_user') || rawContactName.startsWith('Usuario FB');
+  const contactName = !isPlaceholder ? rawContactName : (igHandle || rawContactName || 'Cliente');
+  const contactSubHandle = !isPlaceholder && igHandle && igHandle !== contactName ? igHandle : null;
   const contactFirstName = contactName.split(' ')[0] || 'Cliente';
   const contactAvatar =
     conversation?.contact?.avatarUrl ||
@@ -444,10 +449,15 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                       </button>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <h3 className="text-xs sm:text-sm font-bold text-white truncate font-tech">
                         {contactName}
                       </h3>
+                      {contactSubHandle && (
+                        <span className="text-[11px] text-[#00F0FF] font-mono bg-[#00F0FF]/10 px-1.5 py-0.5 rounded border border-[#00F0FF]/25 font-medium">
+                          {contactSubHandle}
+                        </span>
+                      )}
                       <button
                         type="button"
                         onClick={() => {

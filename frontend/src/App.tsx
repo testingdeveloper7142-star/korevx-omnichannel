@@ -856,8 +856,9 @@ function AppContent({ user }: { user: AuthUser }) {
     const loadFromApi = async () => {
       try {
         const data = await api.getConversations({ workspaceId });
-        if (data && Array.isArray(data)) {
+        if (data && Array.isArray(data) && data.length > 0) {
           setConversations(data);
+          localStorage.setItem(`korevx_conversations_${workspaceId}`, JSON.stringify(data));
         }
       } catch (e) {
         // Fallback local

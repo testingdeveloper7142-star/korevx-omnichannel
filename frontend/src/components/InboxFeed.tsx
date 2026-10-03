@@ -350,6 +350,14 @@ export const InboxFeed: React.FC<InboxFeedProps> = ({
                 ? conv.messages[conv.messages.length - 1]
                 : null;
 
+            const contactObj = conv.contact;
+            const identity = contactObj?.socialIdentities?.[0];
+            const igHandle = identity?.handle ? `@${identity.handle.replace(/^@/, '')}` : null;
+            const rawName = contactObj?.name;
+            const isPlaceholder = !rawName || rawName.startsWith('@instagram_user') || rawName.startsWith('Usuario FB');
+            const displayTitle = !isPlaceholder ? rawName : (igHandle || rawName || 'Cliente');
+            const displaySubHandle = !isPlaceholder && igHandle && igHandle !== displayTitle ? igHandle : null;
+
             return (
               <div
                 key={conv.id}
@@ -361,9 +369,9 @@ export const InboxFeed: React.FC<InboxFeedProps> = ({
                     <img
                       src={
                         conv.contact?.avatarUrl ||
-                        `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.contact?.name || 'Cliente')}&background=1877F2&color=fff&bold=true`
+                        `https://ui-avatars.com/api/?name=${encodeURIComponent(displayTitle)}&background=1877F2&color=fff&bold=true`
                       }
-                      alt={conv.contact?.name || 'Cliente'}
+                      alt={displayTitle}
                       className="w-11 h-11 rounded-full object-cover ring-1 ring-[#1A2332]"
                     />
                     <div className="absolute -bottom-1 -right-1 ring-2 ring-[#030508] rounded-full">
@@ -373,9 +381,16 @@ export const InboxFeed: React.FC<InboxFeedProps> = ({
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="text-sm font-bold text-white group-hover:text-[#00F0FF] transition truncate font-tech">
-                        {conv.contact?.name || 'Cliente'}
-                      </h4>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <h4 className="text-sm font-bold text-white group-hover:text-[#00F0FF] transition truncate font-tech">
+                          {displayTitle}
+                        </h4>
+                        {displaySubHandle && (
+                          <span className="text-[11px] text-[#00F0FF] font-mono font-medium">
+                            ({displaySubHandle})
+                          </span>
+                        )}
+                      </div>
                       {/* Badge de Fanpage Destino */}
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-600/20 text-blue-300 border border-blue-500/40 text-[10px] font-bold">
                         <i className="fa-solid fa-flag text-[9px] text-blue-400"></i>
