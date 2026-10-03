@@ -9,28 +9,9 @@ interface LoginViewProps {
 export const LoginView: React.FC<LoginViewProps> = ({ onSuccess }) => {
   const { login, changePassword, isLoading } = useAuth();
   const serverStatus = useServerStatus();
-  const [wakeProgress, setWakeProgress] = useState(serverStatus === 'online' ? 100 : 15);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (serverStatus === 'online') {
-      setWakeProgress(100);
-      return;
-    }
-    // Simular avance progresivo suave mientras Render arranca el contenedor
-    const interval = setInterval(() => {
-      setWakeProgress((prev) => {
-        if (prev >= 96) return 96;
-        const remaining = 96 - prev;
-        const step = Math.max(0.4, remaining * 0.05);
-        return Math.min(96, prev + step);
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [serverStatus]);
 
   // Estado para modal obligatorio de cambio de contraseña
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
@@ -176,62 +157,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSuccess }) => {
           </div>
 
           {/* Barra de progreso de arranque de servidor en la nube */}
-          <div className="pt-1 space-y-3">
-            {serverStatus !== 'online' ? (
-              <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="flex items-center gap-2 text-amber-400 font-semibold font-tech">
-                    <i className="fa-solid fa-cloud-arrow-up animate-pulse text-amber-400"></i>
-                    <span>Iniciando Servidor en la Nube...</span>
-                  </span>
-                  <span className="font-mono text-xs text-amber-300 font-bold bg-amber-500/20 px-2 py-0.5 rounded-md border border-amber-500/30">
-                    {Math.round(wakeProgress)}%
-                  </span>
-                </div>
-
-                {/* Barra de Progreso con animación */}
-                <div className="w-full bg-[#030508] border border-amber-500/30 rounded-full h-2.5 overflow-hidden p-0.5 shadow-inner">
-                  <div
-                    className="h-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-300 rounded-full transition-all duration-700 ease-out shadow-[0_0_12px_rgba(245,158,11,0.6)]"
-                    style={{ width: `${Math.round(wakeProgress)}%` }}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between text-[10px] text-slate-400 font-tech">
-                  <span className="flex items-center gap-1.5">
-                    <i className="fa-solid fa-clock text-amber-400/80"></i>
-                    <span>Reactivando Render (~30s)</span>
-                  </span>
-                  <span className="text-amber-400 font-semibold">Acceso bloqueado temporalmente</span>
-                </div>
-              </div>
-            ) : (
-              <div className="px-3.5 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-between text-xs">
-                <span className="flex items-center gap-2 text-emerald-400 font-medium">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"></span>
-                  <span>Servidor en línea y listo</span>
-                </span>
-                <span className="font-mono text-[10px] text-emerald-300 font-bold bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30">
-                  100% LISTO
-                </span>
-              </div>
-            )}
-
+          <div className="pt-2">
             <button
               type="submit"
               disabled={isLoading || serverStatus !== 'online'}
-              className={`w-full py-3 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition font-tech uppercase tracking-wider ${
-                serverStatus !== 'online'
-                  ? 'bg-[#0A101D] border border-amber-500/40 text-amber-400/80 cursor-not-allowed shadow-none'
-                  : 'bg-[#00F0FF] hover:bg-[#00D7E5] text-[#030508] shadow-lg shadow-[#00F0FF]/20 active:scale-[0.99]'
-              }`}
+              className="w-full py-3 bg-[#00F0FF] hover:bg-[#00D7E5] disabled:opacity-50 text-[#030508] font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition shadow-lg shadow-[#00F0FF]/20 font-tech uppercase tracking-wider active:scale-[0.99]"
             >
-              {serverStatus !== 'online' ? (
-                <>
-                  <i className="fa-solid fa-circle-notch fa-spin text-xs text-amber-400"></i>
-                  <span>Esperando Servidor ({Math.round(wakeProgress)}%)...</span>
-                </>
-              ) : isLoading ? (
+              {isLoading ? (
                 <>
                   <i className="fa-solid fa-spinner fa-spin text-xs"></i>
                   <span>Verificando Credenciales...</span>
