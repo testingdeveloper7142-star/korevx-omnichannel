@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useServerStatus } from '../../services/serverHealth';
 
 interface LoginViewProps {
   onSuccess: () => void;
@@ -7,6 +8,7 @@ interface LoginViewProps {
 
 export const LoginView: React.FC<LoginViewProps> = ({ onSuccess }) => {
   const { login, changePassword, isLoading } = useAuth();
+  const serverStatus = useServerStatus();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -171,13 +173,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSuccess }) => {
           </div>
         </form>
 
-        {/* Footer Seguridad */}
+        {/* Footer Seguridad y Estado de Servidor */}
         <div className="mt-6 pt-5 border-t border-[#111622] flex items-center justify-between text-[11px] text-slate-500">
-          <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]"></span>
-            <span>Autenticación Multi-Tenant Segura</span>
+          <span className="flex items-center gap-1.5" title={serverStatus === 'online' ? 'Servidor activo y conectado' : 'Despertando el servidor en Render...'}>
+            <span className={`w-2 h-2 rounded-full ${serverStatus === 'online' ? 'bg-[#10B981] shadow-[0_0_8px_rgba(16,185,129,0.7)]' : 'bg-amber-400 animate-pulse shadow-[0_0_8px_rgba(251,191,36,0.7)]'}`}></span>
+            <span className={serverStatus === 'online' ? 'text-slate-400 font-medium' : 'text-amber-400 font-medium'}>
+              {serverStatus === 'online' ? 'Servidor en la nube listo' : 'Despertando servidor en la nube...'}
+            </span>
           </span>
-          <span className="font-tech text-slate-400">v2.1.0</span>
+          <span className="font-tech text-slate-500">v2.1.0</span>
         </div>
       </div>
 

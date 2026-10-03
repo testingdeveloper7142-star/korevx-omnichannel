@@ -9,8 +9,10 @@ import { ConversationsModule } from './modules/conversations/conversations.modul
 import { TicketsModule } from './modules/tickets/tickets.module';
 import { EnterprisesModule } from './modules/enterprises/enterprises.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { AppController } from './app.controller';
 
 @Module({
+  controllers: [AppController],
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,

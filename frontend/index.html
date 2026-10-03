@@ -9,6 +9,15 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+    <script>
+      (function() {
+        try {
+          var isLocal = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1');
+          var pingUrl = isLocal ? 'http://localhost:3000/api/v1/health' : 'https://korevx-omnichannel.onrender.com/api/v1/health';
+          fetch(pingUrl, { mode: 'no-cors', cache: 'no-store' }).catch(function(){});
+        } catch(e) {}
+      })();
+    </script>
   </head>
   <body class="bg-[#030508] text-slate-100 antialiased overflow-hidden select-none h-screen flex flex-col">
     <div id="root" class="h-full flex flex-col"></div>

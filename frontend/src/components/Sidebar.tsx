@@ -1,6 +1,7 @@
 import React from 'react';
 import { PlatformType, InteractionType, ConversationStatus } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useServerStatus } from '../services/serverHealth';
 
 interface SidebarProps {
   selectedChannel: PlatformType | 'all';
@@ -38,6 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { user } = useAuth();
   const isAgent = user?.role === 'AGENT';
+  const serverStatus = useServerStatus();
 
   const hasIgChannel = channels ? channels.some((c) => c.platform === 'INSTAGRAM') : false;
   const hasFbChannel = channels ? channels.some((c) => c.platform === 'FACEBOOK') : false;
@@ -393,8 +395,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Footer Info */}
         <div className="p-3 border-t border-[#111622] bg-[#030508] flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]"></span>
-            <span className="text-[10px] text-slate-500">API Conectada</span>
+            {serverStatus === 'online' ? (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]"></span>
+                <span className="text-[10px] text-slate-500">API Conectada</span>
+              </>
+            ) : serverStatus === 'connecting' ? (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                <span className="text-[10px] text-amber-400/90 font-medium">Despertando servidor...</span>
+              </>
+            ) : (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                <span className="text-[10px] text-rose-400">Reintentando conexión...</span>
+              </>
+            )}
           </div>
           <span className="text-[10px] text-slate-400 font-tech">KorevX Core</span>
         </div>

@@ -177,6 +177,17 @@ function AppContent({ user }: { user: AuthUser }) {
   }, [currentView]);
 
   useEffect(() => {
+    // Al despertar el backend en Render, sincronizar canales automáticamente
+    const handleServerOnline = () => {
+      fetchChannels();
+    };
+    window.addEventListener('korevx_server_online', handleServerOnline);
+    return () => {
+      window.removeEventListener('korevx_server_online', handleServerOnline);
+    };
+  }, [workspaceId]);
+
+  useEffect(() => {
     // Solo persistir si la lista contiene canales para no sobreescribir el cache con [] en arranques en frío
     if (Array.isArray(channels) && channels.length > 0) {
       localStorage.setItem(`korevx_channels_${workspaceId}`, JSON.stringify(channels));
