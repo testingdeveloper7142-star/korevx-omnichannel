@@ -38,6 +38,7 @@ export interface OutgoingMessagePayload {
   parentCommentId?: string;
   postId?: string;
   accessToken: string;
+  senderExternalId?: string;
 }
 
 export interface SendMessageResult {

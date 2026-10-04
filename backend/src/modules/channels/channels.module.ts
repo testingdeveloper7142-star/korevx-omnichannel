@@ -4,6 +4,7 @@ import { ChannelsController } from './channels.controller';
 import { FacebookAdapter } from './adapters/facebook.adapter';
 import { InstagramAdapter } from './adapters/instagram.adapter';
 import { TikTokAdapter } from './adapters/tiktok.adapter';
+import { WhatsAppAdapter } from './adapters/whatsapp.adapter';
 
 @Module({
   controllers: [ChannelsController],
@@ -12,6 +13,7 @@ import { TikTokAdapter } from './adapters/tiktok.adapter';
     FacebookAdapter,
     InstagramAdapter,
     TikTokAdapter,
+    WhatsAppAdapter,
   ],
   exports: [ChannelsService],
 })

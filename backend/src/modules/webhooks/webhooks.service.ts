@@ -85,6 +85,9 @@ export class WebhooksService {
       } else if (event.recipientExternalId === '1305749670200027') {
         accountName = 'Korevx';
         accountHandle = '@korevx';
+      } else if (event.platform === PlatformType.WHATSAPP) {
+        accountName = 'WhatsApp';
+        accountHandle = `@wa_${event.recipientExternalId}`;
       } else if (event.recipientExternalId) {
         accountName = `Página Facebook (${event.recipientExternalId})`;
         accountHandle = `@fb_${event.recipientExternalId}`;
@@ -240,11 +243,12 @@ export class WebhooksService {
     // Si aún no tenemos avatar válido, generamos un avatar estilizado con sus iniciales de ui-avatars.com
     if (!senderAvatarUrl) {
       const isIg = event.platform === PlatformType.INSTAGRAM;
+      const isWa = event.platform === PlatformType.WHATSAPP;
       const cleanName =
         senderName && !senderName.startsWith('Usuario') && !senderName.startsWith('@instagram_user')
           ? senderName.replace(/^@/, '')
-          : (isIg ? 'Instagram' : 'Facebook');
-      const bg = isIg ? 'E1306C' : '1877F2';
+          : (isIg ? 'Instagram' : isWa ? 'WhatsApp' : 'Facebook');
+      const bg = isIg ? 'E1306C' : isWa ? '25D366' : '1877F2';
       senderAvatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=${bg}&color=fff&bold=true`;
     }
 

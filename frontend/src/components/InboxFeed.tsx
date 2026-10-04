@@ -54,6 +54,12 @@ export const InboxFeed: React.FC<InboxFeedProps> = ({
             <i className="fa-brands fa-facebook-f"></i>
           </span>
         );
+      case 'WHATSAPP':
+        return (
+          <span className="w-5 h-5 rounded-full flex items-center justify-center bg-[#25D366] text-[10px] text-white">
+            <i className="fa-brands fa-whatsapp"></i>
+          </span>
+        );
       case 'TIKTOK':
         return (
           <span className="w-5 h-5 rounded-full bg-black border border-slate-700/80 flex items-center justify-center">

@@ -30,6 +30,7 @@ export class ChannelsController {
       platform: PlatformType;
       accountName: string;
       accountHandle?: string;
+      externalAccountId?: string;
       accessToken?: string;
     },
   ) {

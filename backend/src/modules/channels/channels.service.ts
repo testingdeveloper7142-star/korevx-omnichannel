@@ -3,6 +3,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { FacebookAdapter } from './adapters/facebook.adapter';
 import { InstagramAdapter } from './adapters/instagram.adapter';
 import { TikTokAdapter } from './adapters/tiktok.adapter';
+import { WhatsAppAdapter } from './adapters/whatsapp.adapter';
 import {
   ISocialChannelAdapter,
   PlatformType,
@@ -20,10 +21,12 @@ export class ChannelsService {
     private readonly fbAdapter: FacebookAdapter,
     private readonly igAdapter: InstagramAdapter,
     private readonly ttAdapter: TikTokAdapter,
+    private readonly waAdapter: WhatsAppAdapter,
   ) {
     this.adapters.set(PlatformType.FACEBOOK, this.fbAdapter);
     this.adapters.set(PlatformType.INSTAGRAM, this.igAdapter);
     this.adapters.set(PlatformType.TIKTOK, this.ttAdapter);
+    this.adapters.set(PlatformType.WHATSAPP, this.waAdapter);
   }
 
   getAdapter(platform: PlatformType): ISocialChannelAdapter {
@@ -86,6 +89,7 @@ export class ChannelsService {
     return adapter.sendMessage({
       ...payload,
       channelAccountId,
+      senderExternalId: channel.externalAccountId,
       accessToken: token,
     });
   }
@@ -150,11 +154,12 @@ export class ChannelsService {
     platform: PlatformType;
     accountName: string;
     accountHandle?: string;
+    externalAccountId?: string;
     accessToken?: string;
   }) {
-    const cleanExtCandidate = dto.accountHandle ? dto.accountHandle.replace(/^@/, '').trim() : '';
+    const cleanExtCandidate = dto.externalAccountId?.trim() || (dto.accountHandle ? dto.accountHandle.replace(/^@/, '').trim() : '');
     const isCandidatePageId = /^\d{5,}$/.test(cleanExtCandidate);
-    const candidateExtId = isCandidatePageId ? cleanExtCandidate : null;
+    const candidateExtId = dto.externalAccountId?.trim() || (isCandidatePageId ? cleanExtCandidate : null);
 
     // 0. Si ya existe un canal con el mismo externalAccountId para esta plataforma, transferir o reactivar
     if (candidateExtId) {

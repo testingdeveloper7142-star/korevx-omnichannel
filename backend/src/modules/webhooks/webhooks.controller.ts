@@ -15,6 +15,7 @@ import { ConfigService } from '@nestjs/config';
 import { FacebookAdapter } from '../channels/adapters/facebook.adapter';
 import { InstagramAdapter } from '../channels/adapters/instagram.adapter';
 import { TikTokAdapter } from '../channels/adapters/tiktok.adapter';
+import { WhatsAppAdapter } from '../channels/adapters/whatsapp.adapter';
 import { WebhooksService } from './webhooks.service';
 import { CanonicalNormalizedEvent, PlatformType, InteractionType } from '../channels/interfaces/social-channel-adapter.interface';
 
@@ -28,6 +29,7 @@ export class WebhooksController {
     private readonly fbAdapter: FacebookAdapter,
     private readonly igAdapter: InstagramAdapter,
     private readonly ttAdapter: TikTokAdapter,
+    private readonly waAdapter: WhatsAppAdapter,
     private readonly webhooksService: WebhooksService,
   ) {}
 
@@ -69,6 +71,9 @@ export class WebhooksController {
     } else if (body?.object === 'instagram') {
       // Evento de cuenta de Instagram (DMs o comentarios)
       normalizedEvents = this.igAdapter.normalizeIncomingPayload('instagram-default', body);
+    } else if (body?.object === 'whatsapp_business_account') {
+      // Evento de cuenta de WhatsApp Business (mensajes directos)
+      normalizedEvents = this.waAdapter.normalizeIncomingPayload('whatsapp-default', body);
     }
 
     if (normalizedEvents.length > 0) {
