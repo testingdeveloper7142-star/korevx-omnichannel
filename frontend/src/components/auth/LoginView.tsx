@@ -114,10 +114,21 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSuccess }) => {
           </p>
         </div>
 
+        {/* Notificación flotante de error (cero alteración en dimensiones del contenedor) */}
         {errorMessage && (
-          <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2.5">
-            <i className="fa-solid fa-triangle-exclamation text-rose-400 text-sm flex-shrink-0"></i>
-            <span>{errorMessage}</span>
+          <div className="absolute top-3 left-3 right-3 z-30 p-2.5 rounded-2xl bg-[#090D18]/95 backdrop-blur-xl border border-rose-500/60 shadow-xl shadow-rose-950/40 text-rose-300 text-xs flex items-center justify-between gap-2 animate-fade-in">
+            <div className="flex items-center gap-2 min-w-0">
+              <i className="fa-solid fa-triangle-exclamation text-rose-400 text-xs flex-shrink-0"></i>
+              <span className="leading-snug">{errorMessage}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setErrorMessage(null)}
+              className="w-5 h-5 rounded-md hover:bg-rose-500/20 text-slate-400 hover:text-white flex items-center justify-center text-[10px] transition flex-shrink-0"
+              title="Cerrar mensaje"
+            >
+              <i className="fa-solid fa-xmark"></i>
+            </button>
           </div>
         )}
 
