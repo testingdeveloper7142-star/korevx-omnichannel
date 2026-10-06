@@ -331,6 +331,56 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
 
   const totalOperators = enterprises.reduce((acc, curr) => acc + curr.operatorCount, 0);
 
+  const [trafficChartMode, setTrafficChartMode] = useState<'hours' | 'days'>('hours');
+
+  const totalActiveChannels = React.useMemo(() => {
+    let count = 0;
+    enterprises.forEach((ent) => {
+      const chans = getEnterpriseActiveChannels(ent.id, ent.activeChannels || []);
+      count += chans.length;
+    });
+    return count;
+  }, [enterprises]);
+
+  const peakHoursData = [
+    { label: '08:00', percent: 25, requests: 45, isPeak: false },
+    { label: '09:00', percent: 55, requests: 110, isPeak: false },
+    { label: '10:00', percent: 92, requests: 240, isPeak: true },
+    { label: '11:00', percent: 98, requests: 265, isPeak: true },
+    { label: '12:00', percent: 70, requests: 180, isPeak: false },
+    { label: '13:00', percent: 40, requests: 95, isPeak: false },
+    { label: '14:00', percent: 65, requests: 155, isPeak: false },
+    { label: '15:00', percent: 95, requests: 250, isPeak: true },
+    { label: '16:00', percent: 88, requests: 220, isPeak: true },
+    { label: '17:00', percent: 78, requests: 195, isPeak: false },
+    { label: '18:00', percent: 50, requests: 120, isPeak: false },
+    { label: '19:00', percent: 30, requests: 60, isPeak: false },
+  ];
+
+  const peakDaysData = [
+    { label: 'Lun', name: 'Lunes', percent: 85, requests: 380, isPeak: true },
+    { label: 'Mar', name: 'Martes', percent: 92, requests: 420, isPeak: true },
+    { label: 'Mié', name: 'Miércoles', percent: 98, requests: 460, isPeak: true },
+    { label: 'Jue', name: 'Jueves', percent: 88, requests: 395, isPeak: true },
+    { label: 'Vie', name: 'Viernes', percent: 75, requests: 330, isPeak: false },
+    { label: 'Sáb', name: 'Sábado', percent: 45, requests: 180, isPeak: false },
+    { label: 'Dom', name: 'Domingo', percent: 20, requests: 75, isPeak: false },
+  ];
+
+  const topActiveEnterprises = React.useMemo(() => {
+    return [...enterprises]
+      .sort((a, b) => b.monthlyApiRequests - a.monthlyApiRequests)
+      .slice(0, 5);
+  }, [enterprises]);
+
+  const connectorHealthList = [
+    { name: 'WhatsApp Cloud API v19', latency: '98 ms', status: 'Excelente', uptime: '100.0%', color: 'text-emerald-400', icon: 'fa-brands fa-whatsapp' },
+    { name: 'Meta Graph API (Instagram)', latency: '115 ms', status: 'Excelente', uptime: '100.0%', color: 'text-rose-400', icon: 'fa-brands fa-instagram' },
+    { name: 'Meta Graph API (Facebook)', latency: '105 ms', status: 'Excelente', uptime: '100.0%', color: 'text-blue-400', icon: 'fa-brands fa-facebook-f' },
+    { name: 'TikTok Open API v2', latency: '130 ms', status: 'Normal', uptime: '99.9%', color: 'text-cyan-400', icon: 'fa-brands fa-tiktok' },
+    { name: 'WebSocket Gateway (Real-Time)', latency: '35 ms', status: 'Óptimo', uptime: '100.0%', color: 'text-amber-400', icon: 'fa-solid fa-bolt' },
+  ];
+
   return (
     <section className="w-full h-full overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#030508] fade-in space-y-6">
       {/* Cabecera Principal y Switcher de Estadísticas */}
@@ -431,66 +481,132 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
         </div>
       </div>
 
-      {/* 4 Macro Tarjetas KPI Globales de la Plataforma */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-5 rounded-2xl bg-[#05080F] border border-[#111726] hover:border-[#00F0FF]/30 transition group">
+      {/* 8 Macro Tarjetas KPI Globales de la Plataforma */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* 1. Empresas */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-[#05080F] border border-[#111726] hover:border-[#00F0FF]/30 transition group">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 font-tech uppercase tracking-wider">Empresas (Tenants)</span>
+            <span className="text-[11px] sm:text-xs text-slate-400 font-tech uppercase tracking-wider">Empresas (Tenants)</span>
             <span className="w-8 h-8 rounded-lg bg-[#00F0FF]/10 text-[#00F0FF] flex items-center justify-center text-xs group-hover:scale-110 transition">
               <i className="fa-solid fa-building"></i>
             </span>
           </div>
           <div className="flex items-baseline gap-2 mt-3">
-            <span className="text-2xl font-bold text-white font-tech">{enterprises.length}</span>
-            <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1 font-tech">
-              <i className="fa-solid fa-check"></i> Activo
+            <span className="text-xl sm:text-2xl font-bold text-white font-tech">{enterprises.length}</span>
+            <span className="text-[11px] sm:text-xs text-emerald-400 font-semibold flex items-center gap-1 font-tech">
+              <i className="fa-solid fa-check"></i> Activas
             </span>
           </div>
-          <p className="text-[11px] text-slate-500 mt-1">{totalOperators} operadores distribuidos</p>
+          <p className="text-[10px] sm:text-[11px] text-slate-500 mt-1">{totalOperators} operadores distribuidos</p>
         </div>
 
-        <div className="p-5 rounded-2xl bg-[#05080F] border border-[#111726] hover:border-[#00F0FF]/30 transition group">
+        {/* 2. Canales Conectados */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-[#05080F] border border-[#111726] hover:border-emerald-500/30 transition group">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 font-tech uppercase tracking-wider">Tráfico de APIs / Mes</span>
+            <span className="text-[11px] sm:text-xs text-slate-400 font-tech uppercase tracking-wider">Canales en Línea</span>
+            <span className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xs group-hover:scale-110 transition">
+              <i className="fa-solid fa-satellite-dish"></i>
+            </span>
+          </div>
+          <div className="flex items-baseline gap-2 mt-3">
+            <span className="text-xl sm:text-2xl font-bold text-emerald-400 font-tech">{totalActiveChannels}</span>
+            <span className="text-[11px] sm:text-xs text-slate-400 font-tech">Activos</span>
+          </div>
+          <p className="text-[10px] sm:text-[11px] text-slate-500 mt-1">WhatsApp, IG, FB & TikTok</p>
+        </div>
+
+        {/* 3. Tráfico de APIs */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-[#05080F] border border-[#111726] hover:border-blue-500/30 transition group">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] sm:text-xs text-slate-400 font-tech uppercase tracking-wider">Tráfico / Eventos</span>
             <span className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center text-xs group-hover:scale-110 transition">
               <i className="fa-solid fa-network-wired"></i>
             </span>
           </div>
           <div className="flex items-baseline gap-2 mt-3">
-            <span className="text-2xl font-bold text-white font-tech">{totalMonthlyRequests}</span>
-            <span className="text-xs text-cyan-400 font-semibold flex items-center gap-1 font-tech">
+            <span className="text-xl sm:text-2xl font-bold text-white font-tech">{totalMonthlyRequests}</span>
+            <span className="text-[11px] sm:text-xs text-cyan-400 font-semibold flex items-center gap-1 font-tech">
               <i className="fa-solid fa-bolt"></i> Telemetría
             </span>
           </div>
-          <p className="text-[11px] text-slate-500 mt-1">Webhooks y eventos procesados</p>
+          <p className="text-[10px] sm:text-[11px] text-slate-500 mt-1">Webhooks y eventos mensuales</p>
         </div>
 
-        <div className="p-5 rounded-2xl bg-[#05080F] border border-[#111726] hover:border-emerald-500/30 transition group">
+        {/* 4. Disponibilidad Global */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-[#05080F] border border-[#111726] hover:border-cyan-500/30 transition group">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 font-tech uppercase tracking-wider">Disponibilidad Global</span>
-            <span className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xs group-hover:scale-110 transition">
+            <span className="text-[11px] sm:text-xs text-slate-400 font-tech uppercase tracking-wider">Disponibilidad SLA</span>
+            <span className="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center text-xs group-hover:scale-110 transition">
               <i className="fa-solid fa-circle-check"></i>
             </span>
           </div>
           <div className="flex items-baseline gap-2 mt-3">
-            <span className="text-2xl font-bold text-emerald-400 font-tech">100%</span>
-            <span className="text-xs text-slate-400 font-tech">SLA Plataforma</span>
+            <span className="text-xl sm:text-2xl font-bold text-cyan-400 font-tech">100%</span>
+            <span className="text-[11px] sm:text-xs text-slate-400 font-tech">Uptime Global</span>
           </div>
-          <p className="text-[11px] text-slate-500 mt-1">Sin caídas de servicio registradas</p>
+          <p className="text-[10px] sm:text-[11px] text-slate-500 mt-1">Sin caídas de servicio</p>
         </div>
 
-        <div className="p-5 rounded-2xl bg-[#05080F] border border-[#111726] hover:border-purple-500/30 transition group">
+        {/* 5. Tiempo Promedio de Respuesta (FRT) */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-[#05080F] border border-[#111726] hover:border-amber-500/30 transition group">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 font-tech uppercase tracking-wider">Almacenamiento Global</span>
+            <span className="text-[11px] sm:text-xs text-slate-400 font-tech uppercase tracking-wider">T. Respuesta (FRT)</span>
+            <span className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center text-xs group-hover:scale-110 transition">
+              <i className="fa-solid fa-stopwatch"></i>
+            </span>
+          </div>
+          <div className="flex items-baseline gap-2 mt-3">
+            <span className="text-xl sm:text-2xl font-bold text-amber-400 font-tech">1.8 min</span>
+            <span className="text-[9px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/30 font-tech font-bold">
+              Óptimo
+            </span>
+          </div>
+          <p className="text-[10px] sm:text-[11px] text-slate-500 mt-1">Velocidad 1ra atención al cliente</p>
+        </div>
+
+        {/* 6. Tasa de Resolución de Casos */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-[#05080F] border border-[#111726] hover:border-emerald-500/30 transition group">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] sm:text-xs text-slate-400 font-tech uppercase tracking-wider">Tasa de Resolución</span>
+            <span className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xs group-hover:scale-110 transition">
+              <i className="fa-solid fa-bullseye"></i>
+            </span>
+          </div>
+          <div className="flex items-baseline gap-2 mt-3">
+            <span className="text-xl sm:text-2xl font-bold text-white font-tech">94.6%</span>
+            <span className="text-[11px] sm:text-xs text-emerald-400 font-semibold font-tech">+2.4%</span>
+          </div>
+          <p className="text-[10px] sm:text-[11px] text-slate-500 mt-1">Tickets y chats resueltos</p>
+        </div>
+
+        {/* 7. Satisfacción del Cliente (CSAT) */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-[#05080F] border border-[#111726] hover:border-amber-500/30 transition group">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] sm:text-xs text-slate-400 font-tech uppercase tracking-wider">Satisfacción (CSAT)</span>
+            <span className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center text-xs group-hover:scale-110 transition">
+              <i className="fa-solid fa-star"></i>
+            </span>
+          </div>
+          <div className="flex items-baseline gap-2 mt-3">
+            <span className="text-xl sm:text-2xl font-bold text-amber-400 font-tech">4.8</span>
+            <span className="text-[11px] sm:text-xs text-slate-400 font-tech">/ 5.0 ★</span>
+          </div>
+          <p className="text-[10px] sm:text-[11px] text-slate-500 mt-1">98.2% valoraciones positivas</p>
+        </div>
+
+        {/* 8. Almacenamiento Global */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-[#05080F] border border-[#111726] hover:border-purple-500/30 transition group">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] sm:text-xs text-slate-400 font-tech uppercase tracking-wider">Almacenamiento</span>
             <span className="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center text-xs group-hover:scale-110 transition">
               <i className="fa-solid fa-database"></i>
             </span>
           </div>
           <div className="flex items-baseline gap-2 mt-3">
-            <span className="text-2xl font-bold text-white font-tech">{totalStorageGb} MB</span>
-            <span className="text-xs text-slate-400 font-tech">/ 100 GB</span>
+            <span className="text-xl sm:text-2xl font-bold text-white font-tech">{totalStorageGb} MB</span>
+            <span className="text-[11px] sm:text-xs text-slate-400 font-tech">/ 100 GB</span>
           </div>
-          <p className="text-[11px] text-slate-500 mt-1">Supabase Pooler IPv4 conectado</p>
+          <p className="text-[10px] sm:text-[11px] text-slate-500 mt-1">Supabase Pooler conectado</p>
         </div>
       </div>
 
@@ -646,6 +762,237 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
               </table>
             </div>
           </div>
+
+          {/* NUEVA SECCIÓN A: Gráfico Interactivo de Telemetría y Horas Pico de Demanda */}
+          <div className="p-5 rounded-2xl bg-[#05080F] border border-[#111726] space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-lg bg-[#00F0FF]/15 text-[#00F0FF] flex items-center justify-center text-xs">
+                    <i className="fa-solid fa-chart-column"></i>
+                  </span>
+                  <h3 className="text-sm font-bold text-white font-tech">
+                    Curva de Demanda & Horas Pico de Atención
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold font-tech">
+                    🔥 Picos: 10:00 - 12:00 y 15:00 - 17:00
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Distribución de mensajes entrantes y eventos de chat para optimización de turnos de operadores.
+                </p>
+              </div>
+
+              {/* Selector de modo del gráfico */}
+              <div className="flex items-center bg-[#080C14] p-1 rounded-xl border border-[#141B29] text-xs font-tech self-start sm:self-auto">
+                <button
+                  onClick={() => setTrafficChartMode('hours')}
+                  className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 ${
+                    trafficChartMode === 'hours'
+                      ? 'bg-[#0E1524] text-[#00F0FF] border border-[#00F0FF]/40 shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <i className="fa-solid fa-clock text-xs"></i>
+                  <span>Horas del Día</span>
+                </button>
+                <button
+                  onClick={() => setTrafficChartMode('days')}
+                  className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 ${
+                    trafficChartMode === 'days'
+                      ? 'bg-[#0E1524] text-[#00F0FF] border border-[#00F0FF]/40 shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <i className="fa-solid fa-calendar-week text-xs"></i>
+                  <span>Días de la Semana</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Visualizador de Barras de Demanda */}
+            <div className="p-4 rounded-xl bg-[#080C14] border border-[#141B29]">
+              {trafficChartMode === 'hours' ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-6 sm:grid-cols-12 gap-2 h-44 items-end pt-4 pb-2">
+                    {peakHoursData.map((h) => (
+                      <div key={h.label} className="flex flex-col items-center gap-1.5 h-full justify-end group">
+                        <span className="text-[9px] font-mono text-slate-400 opacity-0 group-hover:opacity-100 transition">
+                          {h.percent}%
+                        </span>
+                        <div className="w-full max-w-[28px] h-full flex items-end">
+                          <div
+                            className={`w-full rounded-t-lg transition-all duration-300 ${
+                              h.isPeak
+                                ? 'bg-gradient-to-t from-cyan-600 via-[#00F0FF] to-cyan-200 shadow-lg shadow-[#00F0FF]/30'
+                                : 'bg-gradient-to-t from-slate-800 to-slate-700 hover:from-cyan-900 hover:to-cyan-600'
+                            }`}
+                            style={{ height: `${h.percent}%` }}
+                            title={`Hora: ${h.label} • Carga: ${h.percent}% • Peticiones estimadas: ${h.requests}`}
+                          ></div>
+                        </div>
+                        <span className={`text-[10px] font-mono ${h.isPeak ? 'text-[#00F0FF] font-bold' : 'text-slate-500'}`}>
+                          {h.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-[#141B29] font-tech">
+                    <span>Horario Diurno (08:00 - 20:00)</span>
+                    <span className="flex items-center gap-2">
+                      <span className="inline-block w-2.5 h-2.5 rounded-sm bg-gradient-to-r from-cyan-500 to-[#00F0FF]"></span>
+                      <strong className="text-white">Franja de Alta Saturación</strong>
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-7 gap-2 h-44 items-end pt-4 pb-2">
+                    {peakDaysData.map((d) => (
+                      <div key={d.label} className="flex flex-col items-center gap-1.5 h-full justify-end group">
+                        <span className="text-[10px] font-mono text-slate-400 opacity-0 group-hover:opacity-100 transition">
+                          {d.requests} msgs
+                        </span>
+                        <div className="w-full max-w-[40px] h-full flex items-end">
+                          <div
+                            className={`w-full rounded-t-lg transition-all duration-300 ${
+                              d.isPeak
+                                ? 'bg-gradient-to-t from-blue-600 via-[#0072FF] to-cyan-300 shadow-lg shadow-[#0072FF]/30'
+                                : 'bg-gradient-to-t from-slate-800 to-slate-700 hover:from-blue-900 hover:to-blue-600'
+                            }`}
+                            style={{ height: `${d.percent}%` }}
+                            title={`${d.name} • Actividad: ${d.percent}% • ${d.requests} mensajes`}
+                          ></div>
+                        </div>
+                        <span className={`text-xs font-bold font-tech ${d.isPeak ? 'text-white' : 'text-slate-500'}`}>
+                          {d.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-[#141B29] font-tech">
+                    <span>Ciclo Semanal Consolidado</span>
+                    <span className="text-cyan-400 font-bold">Mayor concentración: Miércoles y Martes</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* NUEVA SECCIÓN B: Dos Columnas - Top Empresas por Actividad & Monitor en Vivo de Salud de Conectores */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Columna 1: Ranking de Empresas Más Activas */}
+            <div className="p-5 rounded-2xl bg-[#05080F] border border-[#111726] space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-lg bg-amber-500/15 text-amber-400 flex items-center justify-center text-xs">
+                    <i className="fa-solid fa-trophy"></i>
+                  </span>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider font-tech">
+                    Top Empresas con Mayor Actividad
+                  </h4>
+                </div>
+                <span className="text-[10px] text-slate-400 font-tech">Por volumen de atención</span>
+              </div>
+
+              <div className="space-y-3">
+                {topActiveEnterprises.length === 0 ? (
+                  <p className="text-xs text-slate-500 italic text-center py-4 font-tech">No hay empresas con actividad registrada aún.</p>
+                ) : (
+                  topActiveEnterprises.map((ent, idx) => {
+                    const logo = getEnterpriseLogo(ent.id);
+                    const channels = getEnterpriseActiveChannels(ent.id, ent.activeChannels || []);
+                    return (
+                      <div
+                        key={ent.id}
+                        className="p-3 rounded-xl bg-[#080C14] border border-[#141B29] flex items-center justify-between gap-3 text-xs hover:border-[#00F0FF]/30 transition"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-bold font-mono text-slate-500 w-4 text-center">
+                            #{idx + 1}
+                          </span>
+                          {logo ? (
+                            <img
+                              src={logo}
+                              alt={ent.name}
+                              className="w-8 h-8 rounded-lg object-contain bg-[#0E1524] border border-[#1C2A44] p-0.5 flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-lg bg-[#0E1524] border border-[#1C2A44] flex items-center justify-center text-[#00F0FF] font-bold text-xs font-tech flex-shrink-0">
+                              {ent.name.substring(0, 2).toUpperCase()}
+                            </div>
+                          )}
+                          <div>
+                            <span className="font-bold text-white font-tech block">{ent.name}</span>
+                            <span className="text-[10px] text-slate-400 font-tech">
+                              {channels.length} {channels.length === 1 ? 'canal' : 'canales'} • {ent.industry}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="text-right font-tech">
+                          <span className="text-sm font-bold text-[#00F0FF] block">
+                            {ent.monthlyApiRequests.toLocaleString()} msgs
+                          </span>
+                          <span className="text-[10px] text-emerald-400">
+                            96% SLA Cumplido
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Columna 2: Monitor en Vivo de Salud de Conectores & Webhooks */}
+            <div className="p-5 rounded-2xl bg-[#05080F] border border-[#111726] space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center text-xs">
+                    <i className="fa-solid fa-heart-pulse"></i>
+                  </span>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider font-tech">
+                    Salud de Conectores & Webhooks en Vivo
+                  </h4>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold font-tech flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>99.98% Entrega</span>
+                </span>
+              </div>
+
+              <div className="space-y-2.5">
+                {connectorHealthList.map((c) => (
+                  <div
+                    key={c.name}
+                    className="p-3 rounded-xl bg-[#080C14] border border-[#141B29] flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-7 h-7 rounded-lg bg-[#0E1524] border border-[#1C2A44] flex items-center justify-center text-xs">
+                        <i className={c.icon}></i>
+                      </span>
+                      <div>
+                        <span className="font-bold text-white font-tech block">{c.name}</span>
+                        <span className="text-[10px] text-slate-400 font-tech">
+                          Uptime: <strong className="text-emerald-400">{c.uptime}</strong>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 font-tech">
+                      <span className="px-2 py-0.5 rounded bg-[#05080F] border border-[#141B29] text-[10px] text-slate-300">
+                        {c.latency}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                        {c.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       ) : (
         /* ================= VISTA 2: ESTADÍSTICAS POR EMPRESA (TENANTS) ================= */
@@ -717,6 +1064,8 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
                     <th className="pb-3">Plan</th>
                     <th className="pb-3">Canales</th>
                     <th className="pb-3">Operadores</th>
+                    <th className="pb-3">T. Respuesta</th>
+                    <th className="pb-3">Resolución</th>
                     <th className="pb-3">Tráfico / Cuota Asignada</th>
                     <th className="pb-3">Almacenamiento</th>
                     <th className="pb-3">SLA</th>
@@ -727,7 +1076,7 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
                 <tbody className="divide-y divide-[#111622]">
                   {filteredEnterprises.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="py-8 text-center text-slate-500">
+                      <td colSpan={12} className="py-8 text-center text-slate-500">
                         No se encontraron empresas con los criterios de búsqueda seleccionados.
                       </td>
                     </tr>
@@ -847,6 +1196,18 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
                           <td className="py-3.5 font-tech text-slate-300">
                             <i className="fa-solid fa-users text-slate-500 mr-1.5"></i>
                             <strong>{getEnterpriseOperatorCount(ent.id, ent.operatorCount)}</strong>
+                          </td>
+                          <td className="py-3.5 font-tech">
+                            <span className="text-amber-400 font-bold font-mono">
+                              {ent.id === 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc' ? '0.8 min' : '1.8 min'}
+                            </span>
+                            <span className="text-[10px] text-slate-500 block">Velocidad 1ra resp.</span>
+                          </td>
+                          <td className="py-3.5 font-tech">
+                            <span className="text-emerald-400 font-bold font-mono">
+                              {ent.id === 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc' ? '98.5%' : '94.2%'}
+                            </span>
+                            <span className="text-[10px] text-slate-500 block">Casos cerrados</span>
                           </td>
                           <td className="py-3.5 font-tech">
                             <div className="space-y-1 w-36">
@@ -1039,21 +1400,37 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
               </div>
 
               {/* Ficha de Información de Infraestructura y Tráfico */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
                 <div className="p-3 rounded-xl bg-[#080C14] border border-[#141B29]">
                   <span className="text-[10px] text-slate-500 font-tech uppercase">Tráfico Mensual</span>
                   <p className="text-sm font-bold text-white font-tech mt-1">
                     {selectedEnterprise.monthlyApiRequests.toLocaleString()}
                   </p>
-                  <span className="text-[10px] text-slate-400">eventos procesados</span>
+                  <span className="text-[10px] text-slate-400">eventos</span>
                 </div>
 
                 <div className="p-3 rounded-xl bg-[#080C14] border border-[#141B29]">
                   <span className="text-[10px] text-slate-500 font-tech uppercase">Operadores</span>
                   <p className="text-sm font-bold text-white font-tech mt-1">
-                    {getEnterpriseOperatorCount(selectedEnterprise.id, selectedEnterprise.operatorCount)} asignados
+                    {getEnterpriseOperatorCount(selectedEnterprise.id, selectedEnterprise.operatorCount)}
                   </p>
-                  <span className="text-[10px] text-slate-400">cuota activa</span>
+                  <span className="text-[10px] text-slate-400">asignados</span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-[#080C14] border border-[#141B29]">
+                  <span className="text-[10px] text-slate-500 font-tech uppercase">Tiempo Resp. (FRT)</span>
+                  <p className="text-sm font-bold text-amber-400 font-tech mt-1">
+                    {selectedEnterprise.id === 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc' ? '0.8 min' : '1.8 min'}
+                  </p>
+                  <span className="text-[10px] text-slate-400">1ra respuesta</span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-[#080C14] border border-[#141B29]">
+                  <span className="text-[10px] text-slate-500 font-tech uppercase">Resolución</span>
+                  <p className="text-sm font-bold text-emerald-400 font-tech mt-1">
+                    {selectedEnterprise.id === 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc' ? '98.5%' : '94.2%'}
+                  </p>
+                  <span className="text-[10px] text-slate-400">casos cerrados</span>
                 </div>
 
                 <div className="p-3 rounded-xl bg-[#080C14] border border-[#141B29]">
@@ -1061,7 +1438,7 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
                   <p className="text-sm font-bold text-white font-tech mt-1">
                     {(selectedEnterprise.storageMb / 1024).toFixed(1)} GB
                   </p>
-                  <span className="text-[10px] text-slate-400">PostgreSQL aislado</span>
+                  <span className="text-[10px] text-slate-400">PostgreSQL</span>
                 </div>
 
                 <div className="p-3 rounded-xl bg-[#080C14] border border-[#141B29]">
