@@ -129,6 +129,9 @@ export class ChannelsService {
         data.externalAccountId = cleanPageId;
       }
     }
+    if (dto.externalAccountId !== undefined) {
+      data.externalAccountId = dto.externalAccountId.trim() || undefined;
+    }
     if (dto.accessToken !== undefined) {
       data.accessToken = dto.accessToken.trim() || undefined;
     }

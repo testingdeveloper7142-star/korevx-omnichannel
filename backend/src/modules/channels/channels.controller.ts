@@ -45,6 +45,7 @@ export class ChannelsController {
     dto: {
       accountName?: string;
       accountHandle?: string;
+      externalAccountId?: string;
       accessToken?: string;
       isActive?: boolean;
     },

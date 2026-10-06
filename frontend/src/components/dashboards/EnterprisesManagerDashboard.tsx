@@ -167,6 +167,19 @@ export const EnterprisesManagerDashboard: React.FC<EnterprisesManagerDashboardPr
   const [editingChanTokenValue, setEditingChanTokenValue] = useState('');
   const [isSavingChanToken, setIsSavingChanToken] = useState(false);
 
+  // Edición completa de canal (nombre, identificador, token, estado)
+  const [editingChannel, setEditingChannel] = useState<{
+    id: string;
+    platform: PlatformType;
+    accountName: string;
+    accountHandle: string;
+    externalAccountId: string;
+    accessToken: string;
+    isActive: boolean;
+  } | null>(null);
+  const [isSavingChannelEdit, setIsSavingChannelEdit] = useState(false);
+  const [showEditToken, setShowEditToken] = useState(false);
+
   // Cargar empresas desde backend
   const fetchEnterprises = async () => {
     setIsLoading(true);
@@ -422,6 +435,103 @@ export const EnterprisesManagerDashboard: React.FC<EnterprisesManagerDashboardPr
       setChannelActionMessage(`❌ Error actualizando token: ${err.response?.data?.message || err.message}`);
     } finally {
       setIsSavingChanToken(false);
+    }
+  };
+
+  const handleStartEditChannel = (chan: any) => {
+    setEditingChannel({
+      id: chan.id,
+      platform: chan.platform,
+      accountName: chan.accountName || '',
+      accountHandle: chan.accountHandle || '',
+      externalAccountId: chan.externalAccountId || chan.accountHandle || '',
+      accessToken:
+        chan.accessToken && !chan.accessToken.startsWith('live-token-') && !chan.accessToken.includes('demo')
+          ? chan.accessToken
+          : '',
+      isActive: chan.isActive !== false,
+    });
+    setEditingChanTokenId(null);
+    setShowEditToken(false);
+  };
+
+  const handleSaveChannelEdit = async (channelId: string) => {
+    if (!editingChannel || !selectedEnterpriseForChannels) return;
+    const trimmedName = editingChannel.accountName.trim();
+    if (!trimmedName) {
+      alert('El nombre del canal no puede estar vacío.');
+      return;
+    }
+
+    setIsSavingChannelEdit(true);
+    setChannelActionMessage(null);
+
+    const entId = selectedEnterpriseForChannels.id;
+    const cleanExtId = editingChannel.externalAccountId.trim();
+    const cleanHandle = editingChannel.accountHandle.trim() || cleanExtId;
+
+    const payload: any = {
+      accountName: trimmedName,
+      accountHandle: cleanHandle,
+      externalAccountId: cleanExtId,
+      isActive: editingChannel.isActive,
+    };
+    if (editingChannel.accessToken.trim()) {
+      payload.accessToken = editingChannel.accessToken.trim();
+    }
+
+    try {
+      try {
+        await axios.patch(`${getBaseUrl()}/channels/${channelId}`, payload);
+      } catch (err: any) {
+        console.warn('Backend updateChannel offline, aplicando actualización localmente');
+      }
+
+      setEnterpriseChannelsList((prev) =>
+        prev.map((c) =>
+          c.id === channelId
+            ? {
+                ...c,
+                accountName: trimmedName,
+                accountHandle: cleanHandle,
+                externalAccountId: cleanExtId,
+                isActive: editingChannel.isActive,
+                ...(editingChannel.accessToken.trim() ? { accessToken: editingChannel.accessToken.trim() } : {}),
+              }
+            : c
+        )
+      );
+
+      const localKey = `korevx_channels_${entId}`;
+      const existing = localStorage.getItem(localKey);
+      if (existing) {
+        try {
+          const list = JSON.parse(existing);
+          const updated = list.map((c: any) =>
+            c.id === channelId
+              ? {
+                  ...c,
+                  accountName: trimmedName,
+                  accountHandle: cleanHandle,
+                  externalAccountId: cleanExtId,
+                  isActive: editingChannel.isActive,
+                  ...(editingChannel.accessToken.trim() ? { accessToken: editingChannel.accessToken.trim() } : {}),
+                }
+              : c
+          );
+          localStorage.setItem(localKey, JSON.stringify(updated));
+        } catch {}
+      }
+
+      soundManager.playSuccess();
+      setChannelActionMessage(`✅ Canal "${trimmedName}" actualizado exitosamente.`);
+      setEditingChannel(null);
+      fetchEnterprises();
+    } catch (err: any) {
+      soundManager.playWarning();
+      setChannelActionMessage(`❌ Error actualizando canal: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setIsSavingChannelEdit(false);
     }
   };
 
@@ -2335,107 +2445,274 @@ export const EnterprisesManagerDashboard: React.FC<EnterprisesManagerDashboardPr
                     {enterpriseChannelsList.map((chan) => (
                       <div
                         key={chan.id}
-                        className="p-3 rounded-xl bg-[#080C14] border border-[#141B29] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                        className={`p-3.5 rounded-xl border transition ${
+                          editingChannel?.id === chan.id
+                            ? 'bg-[#05080F] border-[#00F0FF]/60 shadow-lg shadow-[#00F0FF]/10'
+                            : 'bg-[#080C14] border-[#141B29] hover:border-[#1E293B]'
+                        }`}
                       >
-                        <div className="flex items-center gap-2.5">
-                          <span
-                            className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs ${
-                              chan.platform === 'WHATSAPP'
-                                ? 'bg-emerald-500/20 text-emerald-400'
-                                : chan.platform === 'INSTAGRAM'
-                                ? 'bg-rose-500/20 text-rose-400'
-                                : chan.platform === 'FACEBOOK'
-                                ? 'bg-blue-500/20 text-blue-400'
-                                : 'bg-cyan-500/20 text-cyan-400'
-                            }`}
-                          >
-                            <i
-                              className={
-                                chan.platform === 'WHATSAPP'
-                                  ? 'fa-brands fa-whatsapp'
-                                  : chan.platform === 'INSTAGRAM'
-                                  ? 'fa-brands fa-instagram'
-                                  : chan.platform === 'FACEBOOK'
-                                  ? 'fa-brands fa-facebook-f'
-                                  : 'fa-brands fa-tiktok'
-                              }
-                            ></i>
-                          </span>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-white font-tech">{chan.accountName}</span>
+                        {editingChannel?.id === chan.id ? (
+                          /* Modo Edición Completa de Canal */
+                          <div className="space-y-3.5">
+                            <div className="flex items-center justify-between pb-2 border-b border-[#141B29]">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs ${
+                                    chan.platform === 'WHATSAPP'
+                                      ? 'bg-emerald-500/20 text-emerald-400'
+                                      : chan.platform === 'INSTAGRAM'
+                                      ? 'bg-rose-500/20 text-rose-400'
+                                      : chan.platform === 'FACEBOOK'
+                                      ? 'bg-blue-500/20 text-blue-400'
+                                      : 'bg-cyan-500/20 text-cyan-400'
+                                  }`}
+                                >
+                                  <i
+                                    className={
+                                      chan.platform === 'WHATSAPP'
+                                        ? 'fa-brands fa-whatsapp'
+                                        : chan.platform === 'INSTAGRAM'
+                                        ? 'fa-brands fa-instagram'
+                                        : chan.platform === 'FACEBOOK'
+                                        ? 'fa-brands fa-facebook-f'
+                                        : 'fa-brands fa-tiktok'
+                                    }
+                                  ></i>
+                                </span>
+                                <h5 className="text-xs font-bold font-tech text-white">
+                                  Editar Canal: <span className="text-[#00F0FF]">{chan.accountName}</span> ({chan.platform})
+                                </h5>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setEditingChannel(null)}
+                                className="w-6 h-6 rounded-lg bg-[#080C14] hover:bg-[#121824] text-slate-400 hover:text-white flex items-center justify-center text-xs"
+                                title="Cancelar edición"
+                              >
+                                <i className="fa-solid fa-xmark"></i>
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                              <div>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase font-tech block mb-1">
+                                  Nombre del Canal Oficial *
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editingChannel.accountName}
+                                  onChange={(e) =>
+                                    setEditingChannel({ ...editingChannel, accountName: e.target.value })
+                                  }
+                                  placeholder="ej: WhatsApp Soporte Oficial"
+                                  className="w-full px-3 py-1.5 bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase font-tech block mb-1">
+                                  {chan.platform === 'WHATSAPP'
+                                    ? 'Phone Number ID de Meta *'
+                                    : chan.platform === 'FACEBOOK'
+                                    ? 'Page ID de Facebook *'
+                                    : chan.platform === 'INSTAGRAM'
+                                    ? 'Instagram Account ID *'
+                                    : 'Account ID de TikTok *'}
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editingChannel.externalAccountId}
+                                  onChange={(e) =>
+                                    setEditingChannel({
+                                      ...editingChannel,
+                                      externalAccountId: e.target.value,
+                                      accountHandle: e.target.value,
+                                    })
+                                  }
+                                  placeholder="ej: 109283746501928"
+                                  className="w-full px-3 py-1.5 bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl text-xs text-white font-mono placeholder-slate-600 focus:outline-none"
+                                />
+                              </div>
+
+                              <div className="sm:col-span-2">
+                                <div className="flex items-center justify-between mb-1">
+                                  <label className="text-[10px] font-bold text-slate-400 uppercase font-tech">
+                                    Token de Acceso de Página / Meta Token
+                                  </label>
+                                  <span className="text-[9px] text-cyan-400 font-mono">
+                                    Dejar vacío si no deseas cambiar el token actual
+                                  </span>
+                                </div>
+                                <div className="relative">
+                                  <input
+                                    type={showEditToken ? 'text' : 'password'}
+                                    value={editingChannel.accessToken}
+                                    onChange={(e) =>
+                                      setEditingChannel({ ...editingChannel, accessToken: e.target.value })
+                                    }
+                                    placeholder="EAA... ingresar nuevo token sólo si deseas reemplazarlo"
+                                    className="w-full px-3 py-1.5 pr-8 bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl text-xs text-white font-mono placeholder-slate-600 focus:outline-none"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowEditToken(!showEditToken)}
+                                    className="absolute right-2.5 top-2 text-slate-500 hover:text-slate-300 text-xs"
+                                    title={showEditToken ? 'Ocultar token' : 'Ver token'}
+                                  >
+                                    <i className={`fa-solid ${showEditToken ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="sm:col-span-2 flex items-center justify-between pt-1">
+                                <label className="text-[11px] text-slate-300 font-tech flex items-center gap-2 cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={editingChannel.isActive}
+                                    onChange={(e) =>
+                                      setEditingChannel({ ...editingChannel, isActive: e.target.checked })
+                                    }
+                                    className="w-4 h-4 rounded bg-[#080C14] border-[#141B29] text-[#00F0FF] focus:ring-0"
+                                  />
+                                  <span>Canal Activo (disponible para recepción y envío de mensajes)</span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#141B29]">
+                              <button
+                                type="button"
+                                onClick={() => setEditingChannel(null)}
+                                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-tech font-bold transition"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSaveChannelEdit(chan.id)}
+                                disabled={isSavingChannelEdit}
+                                className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0072FF] hover:brightness-110 text-black text-xs font-tech font-bold flex items-center gap-1.5 shadow-md shadow-[#00F0FF]/20 transition disabled:opacity-50"
+                              >
+                                <i className={`fa-solid ${isSavingChannelEdit ? 'fa-spinner fa-spin' : 'fa-check'}`}></i>
+                                <span>{isSavingChannelEdit ? 'Guardando...' : 'Guardar Cambios'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          /* Vista Normal del Canal */
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                            <div className="flex items-center gap-2.5">
                               <span
-                                className={`px-2 py-0.2 rounded-full text-[9px] font-bold ${
-                                  chan.isActive
-                                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                                    : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                                className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs ${
+                                  chan.platform === 'WHATSAPP'
+                                    ? 'bg-emerald-500/20 text-emerald-400'
+                                    : chan.platform === 'INSTAGRAM'
+                                    ? 'bg-rose-500/20 text-rose-400'
+                                    : chan.platform === 'FACEBOOK'
+                                    ? 'bg-blue-500/20 text-blue-400'
+                                    : 'bg-cyan-500/20 text-cyan-400'
                                 }`}
                               >
-                                {chan.isActive ? 'Activo' : 'Pausado'}
+                                <i
+                                  className={
+                                    chan.platform === 'WHATSAPP'
+                                      ? 'fa-brands fa-whatsapp'
+                                      : chan.platform === 'INSTAGRAM'
+                                      ? 'fa-brands fa-instagram'
+                                      : chan.platform === 'FACEBOOK'
+                                      ? 'fa-brands fa-facebook-f'
+                                      : 'fa-brands fa-tiktok'
+                                  }
+                                ></i>
                               </span>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-white font-tech">{chan.accountName}</span>
+                                  <span
+                                    className={`px-2 py-0.2 rounded-full text-[9px] font-bold ${
+                                      chan.isActive
+                                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                        : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                                    }`}
+                                  >
+                                    {chan.isActive ? 'Activo' : 'Pausado'}
+                                  </span>
+                                </div>
+                                <span className="text-[11px] text-slate-400 font-mono">
+                                  {chan.accountHandle || chan.externalAccountId || 'Sin ID configurado'}
+                                </span>
+                              </div>
                             </div>
-                            <span className="text-[11px] text-slate-400 font-mono">
-                              {chan.accountHandle || chan.externalAccountId || 'Sin handle'}
-                            </span>
+
+                            <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
+                              {editingChanTokenId === chan.id ? (
+                                <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                                  <input
+                                    type="password"
+                                    placeholder="EAA... nuevo token"
+                                    value={editingChanTokenValue}
+                                    onChange={(e) => setEditingChanTokenValue(e.target.value)}
+                                    className="px-2 py-1 bg-[#05080F] border border-[#00F0FF]/50 rounded-lg text-xs text-white placeholder-slate-600 font-mono"
+                                  />
+                                  <button
+                                    onClick={() => handleSaveChannelTokenForEnterprise(chan.id)}
+                                    disabled={isSavingChanToken || !editingChanTokenValue.trim()}
+                                    className="px-2 py-1 rounded-lg bg-[#00F0FF] text-black font-bold text-xs"
+                                  >
+                                    {isSavingChanToken ? '...' : 'OK'}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setEditingChanTokenId(null);
+                                      setEditingChanTokenValue('');
+                                    }}
+                                    className="px-2 py-1 rounded-lg bg-slate-800 text-slate-300 text-xs"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => handleStartEditChannel(chan)}
+                                    className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 text-[10px] font-tech font-bold flex items-center gap-1 transition shadow-sm"
+                                    title="Editar nombre, identificador/ID o token de este canal"
+                                  >
+                                    <i className="fa-solid fa-pen-to-square text-[9px]"></i>
+                                    <span>Editar</span>
+                                  </button>
+
+                                  <button
+                                    onClick={() => {
+                                      setEditingChanTokenId(chan.id);
+                                      setEditingChanTokenValue(
+                                        chan.accessToken &&
+                                          !chan.accessToken.startsWith('live-token-') &&
+                                          !chan.accessToken.includes('demo')
+                                          ? chan.accessToken
+                                          : ''
+                                      );
+                                    }}
+                                    className="px-2 py-1 rounded-lg bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 border border-cyan-800/40 text-[10px] font-tech font-bold flex items-center gap-1 transition"
+                                    title="Editar únicamente el token de acceso Meta"
+                                  >
+                                    <i className="fa-solid fa-key text-[9px]"></i>
+                                    <span>Token</span>
+                                  </button>
+
+                                  <button
+                                    onClick={() => handleDeleteChannelForEnterprise(chan.id)}
+                                    className="px-2 py-1 rounded-lg bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-800/40 text-[10px] font-tech font-bold flex items-center gap-1 transition"
+                                    title="Desvincular y eliminar canal oficial"
+                                  >
+                                    <i className="fa-solid fa-trash text-[9px]"></i>
+                                    <span>Eliminar</span>
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          {editingChanTokenId === chan.id ? (
-                            <div className="flex items-center gap-1.5 w-full sm:w-auto">
-                              <input
-                                type="password"
-                                placeholder="EAA... nuevo token"
-                                value={editingChanTokenValue}
-                                onChange={(e) => setEditingChanTokenValue(e.target.value)}
-                                className="px-2 py-1 bg-[#05080F] border border-[#00F0FF]/50 rounded-lg text-xs text-white placeholder-slate-600 font-mono"
-                              />
-                              <button
-                                onClick={() => handleSaveChannelTokenForEnterprise(chan.id)}
-                                disabled={isSavingChanToken || !editingChanTokenValue.trim()}
-                                className="px-2 py-1 rounded-lg bg-[#00F0FF] text-black font-bold text-xs"
-                              >
-                                {isSavingChanToken ? '...' : 'OK'}
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setEditingChanTokenId(null);
-                                  setEditingChanTokenValue('');
-                                }}
-                                className="px-2 py-1 rounded-lg bg-slate-800 text-slate-300 text-xs"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          ) : (
-                            <>
-                              <button
-                                onClick={() => {
-                                  setEditingChanTokenId(chan.id);
-                                  setEditingChanTokenValue(
-                                    chan.accessToken && !chan.accessToken.startsWith('live-token-') && !chan.accessToken.includes('demo')
-                                      ? chan.accessToken
-                                      : ''
-                                  );
-                                }}
-                                className="px-2 py-1 rounded-lg bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 border border-cyan-800/40 text-[10px] font-tech font-bold flex items-center gap-1"
-                                title="Editar token de acceso Meta de este canal"
-                              >
-                                <i className="fa-solid fa-key text-[9px]"></i>
-                                <span>Token</span>
-                              </button>
-
-                              <button
-                                onClick={() => handleDeleteChannelForEnterprise(chan.id)}
-                                className="px-2 py-1 rounded-lg bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-800/40 text-[10px] font-tech font-bold flex items-center gap-1"
-                                title="Eliminar canal oficial"
-                              >
-                                <i className="fa-solid fa-trash text-[9px]"></i>
-                                <span>Eliminar</span>
-                              </button>
-                            </>
-                          )}
-                        </div>
+                        )}
                       </div>
                     ))}
                   </div>
