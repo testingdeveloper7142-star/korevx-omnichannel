@@ -32,12 +32,23 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
   onEditChannel,
 }) => {
   const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulatedPlatform, setSimulatedPlatform] = useState<PlatformType>('INSTAGRAM');
   const [simulatedType, setSimulatedType] = useState<InteractionType>('DIRECT_MESSAGE');
   const [simulatedName, setSimulatedName] = useState('Mariana Gómez');
   const [simulatedContent, setSimulatedContent] = useState('¡Hola KorevX! Me interesa integrar su software para mi negocio.');
   const [simSuccess, setSimSuccess] = useState(false);
+
+  // Modal de Solicitud de Activación de Canal (Para Admins de Empresa)
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [requestPlatform, setRequestPlatform] = useState<PlatformType>('WHATSAPP');
+  const [requestAccountName, setRequestAccountName] = useState('');
+  const [requestIdentifier, setRequestIdentifier] = useState('');
+  const [requestContactPhone, setRequestContactPhone] = useState('');
+  const [requestNotes, setRequestNotes] = useState('');
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+  const [requestSuccess, setRequestSuccess] = useState(false);
 
   // Cuotas efectivas asignadas por el Super Admin (Gobernanza)
   const effectiveLimits = {
@@ -131,6 +142,41 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
     } finally {
       setIsUpdatingToken(false);
     }
+  };
+
+  const handleSendChannelRequest = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!requestAccountName.trim() || !requestIdentifier.trim()) return;
+    setIsSubmittingRequest(true);
+
+    const newRequest = {
+      id: `req-${Date.now()}`,
+      workspaceId: user?.workspaceId || 'default-workspace',
+      companyName: user?.workspaceName || 'Empresa',
+      requesterName: user?.fullName || 'Administrador',
+      requesterEmail: user?.email || '',
+      platform: requestPlatform,
+      accountName: requestAccountName.trim(),
+      identifier: requestIdentifier.trim(),
+      contactPhone: requestContactPhone.trim(),
+      notes: requestNotes.trim(),
+      status: 'PENDING',
+      createdAt: new Date().toISOString(),
+    };
+
+    try {
+      const existing = localStorage.getItem('korevx_channel_requests');
+      const list = existing ? JSON.parse(existing) : [];
+      list.unshift(newRequest);
+      localStorage.setItem('korevx_channel_requests', JSON.stringify(list));
+    } catch {}
+
+    setIsSubmittingRequest(false);
+    setRequestSuccess(true);
+    setTimeout(() => {
+      setIsRequestModalOpen(false);
+      setRequestSuccess(false);
+    }, 2500);
   };
 
   const currentPlatformCount = (channelCounts as any)[newPlatform] ?? 0;
@@ -282,13 +328,30 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={() => setIsAddChannelModalOpen(true)}
-          className="px-4 py-2 rounded-xl bg-[#00F0FF] hover:bg-[#00D7E5] text-[#030508] font-bold text-xs flex items-center gap-2 font-tech shadow-md shadow-[#00F0FF]/20 transition"
-        >
-          <i className="fa-solid fa-plus text-xs"></i>
-          <span>Conectar Nueva Red Social</span>
-        </button>
+        {isSuperAdmin ? (
+          <button
+            onClick={() => setIsAddChannelModalOpen(true)}
+            className="px-4 py-2 rounded-xl bg-[#00F0FF] hover:bg-[#00D7E5] text-[#030508] font-bold text-xs flex items-center gap-2 font-tech shadow-md shadow-[#00F0FF]/20 transition"
+          >
+            <i className="fa-solid fa-plus text-xs"></i>
+            <span>Conectar Nueva Red Social (Super Admin)</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              setRequestAccountName('');
+              setRequestIdentifier('');
+              setRequestContactPhone('');
+              setRequestNotes('');
+              setRequestSuccess(false);
+              setIsRequestModalOpen(true);
+            }}
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#00F0FF]/20 to-blue-500/20 hover:from-[#00F0FF]/30 hover:to-blue-500/30 border border-[#00F0FF]/50 text-[#00F0FF] font-bold text-xs flex items-center gap-2 font-tech shadow-md shadow-[#00F0FF]/15 transition"
+          >
+            <i className="fa-solid fa-headset text-xs"></i>
+            <span>Solicitar Activación de Canal</span>
+          </button>
+        )}
       </div>
 
       {/* Banner de Cuotas Asignadas por Super Admin */}
@@ -431,54 +494,80 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
                 </span>
 
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleOpenEditModal(chan)}
-                    className="px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition bg-blue-950/30 hover:bg-blue-900/40 text-blue-300 border border-blue-800/40"
-                    title="Editar nombre, identificador o token del canal"
-                  >
-                    <i className="fa-solid fa-pen-to-square text-xs"></i>
-                    <span>Editar</span>
-                  </button>
+                  {isSuperAdmin ? (
+                    <>
+                      <button
+                        onClick={() => handleOpenEditModal(chan)}
+                        className="px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition bg-blue-950/30 hover:bg-blue-900/40 text-blue-300 border border-blue-800/40"
+                        title="Editar nombre, identificador o token del canal"
+                      >
+                        <i className="fa-solid fa-pen-to-square text-xs"></i>
+                        <span>Editar</span>
+                      </button>
 
-                  <button
-                    onClick={() => {
-                      setEditingTokenChannelId(chan.id);
-                      setTokenInput(chan.accessToken && !chan.accessToken.startsWith('live-token-') && !chan.accessToken.includes('demo') ? chan.accessToken : '');
-                    }}
-                    className="px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition bg-cyan-950/30 hover:bg-cyan-900/40 text-cyan-300 border border-cyan-800/40"
-                    title="Configurar Token de Página de Meta / Graph API"
-                  >
-                    <i className="fa-solid fa-key text-xs"></i>
-                    <span>Token</span>
-                  </button>
+                      <button
+                        onClick={() => {
+                          setEditingTokenChannelId(chan.id);
+                          setTokenInput(chan.accessToken && !chan.accessToken.startsWith('live-token-') && !chan.accessToken.includes('demo') ? chan.accessToken : '');
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition bg-cyan-950/30 hover:bg-cyan-900/40 text-cyan-300 border border-cyan-800/40"
+                        title="Configurar Token de Página de Meta / Graph API"
+                      >
+                        <i className="fa-solid fa-key text-xs"></i>
+                        <span>Token</span>
+                      </button>
 
-                  {onToggleChannelStatus && (
-                    <button
-                      onClick={() => onToggleChannelStatus(chan.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition ${
-                        chan.isActive
-                          ? 'bg-rose-950/30 hover:bg-rose-900/40 text-rose-300 border border-rose-800/40'
-                          : 'bg-emerald-950/30 hover:bg-emerald-900/40 text-emerald-300 border border-emerald-800/40'
-                      }`}
-                    >
-                      <i className={`fa-solid ${chan.isActive ? 'fa-plug-circle-xmark' : 'fa-plug-circle-check'} text-xs`}></i>
-                      <span>{chan.isActive ? 'Desconectar' : 'Reconectar'}</span>
-                    </button>
-                  )}
+                      {onToggleChannelStatus && (
+                        <button
+                          onClick={() => onToggleChannelStatus(chan.id)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition ${
+                            chan.isActive
+                              ? 'bg-rose-950/30 hover:bg-rose-900/40 text-rose-300 border border-rose-800/40'
+                              : 'bg-emerald-950/30 hover:bg-emerald-900/40 text-emerald-300 border border-emerald-800/40'
+                          }`}
+                        >
+                          <i className={`fa-solid ${chan.isActive ? 'fa-plug-circle-xmark' : 'fa-plug-circle-check'} text-xs`}></i>
+                          <span>{chan.isActive ? 'Desconectar' : 'Reconectar'}</span>
+                        </button>
+                      )}
 
-                  {onDeleteChannel && (
-                    <button
-                      onClick={() => {
-                        if (window.confirm(`¿Estás seguro de eliminar permanentemente el canal "${chan.accountName}"? Esta acción quedará registrada en el log de auditoría.`)) {
-                          onDeleteChannel(chan.id);
-                        }
-                      }}
-                      className="px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/50 transition"
-                      title="Eliminar canal definitivamente"
-                    >
-                      <i className="fa-solid fa-trash-can text-xs"></i>
-                      <span>Borrar</span>
-                    </button>
+                      {onDeleteChannel && (
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`¿Estás seguro de eliminar permanentemente el canal "${chan.accountName}"? Esta acción quedará registrada en el log de auditoría.`)) {
+                              onDeleteChannel(chan.id);
+                            }
+                          }}
+                          className="px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/50 transition"
+                          title="Eliminar canal definitivamente"
+                        >
+                          <i className="fa-solid fa-trash-can text-xs"></i>
+                          <span>Borrar</span>
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span className="px-2.5 py-1 rounded-lg bg-[#080C14] border border-[#141B29] text-[10px] text-slate-400 font-tech flex items-center gap-1.5" title="KorevX gestiona las conexiones oficiales en alta disponibilidad">
+                        <i className="fa-solid fa-shield-halved text-[#00F0FF]"></i>
+                        <span>Gestionado por Super Admin</span>
+                      </span>
+
+                      {onToggleChannelStatus && (
+                        <button
+                          onClick={() => onToggleChannelStatus(chan.id)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
+                            chan.isActive
+                              ? 'bg-amber-950/30 hover:bg-amber-900/40 text-amber-300 border border-amber-800/40'
+                              : 'bg-emerald-950/30 hover:bg-emerald-900/40 text-emerald-300 border border-emerald-800/40'
+                          }`}
+                          title={chan.isActive ? 'Pausar temporalmente la atención en este canal' : 'Reanudar atención'}
+                        >
+                          <i className={`fa-solid ${chan.isActive ? 'fa-pause' : 'fa-play'} text-[10px]`}></i>
+                          <span>{chan.isActive ? 'Pausar' : 'Reanudar'}</span>
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -892,6 +981,188 @@ export const ChannelsManager: React.FC<ChannelsManagerProps> = ({
                   </button>
                 </div>
               </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Modal de Solicitud de Activación de Canal (Tenant Admin) */}
+      {isRequestModalOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+            <div className="w-full max-w-lg bg-[#05080F] border border-[#00F0FF]/40 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-cyan-950/40 space-y-5">
+              <div className="flex items-center justify-between pb-3 border-b border-[#111726]">
+                <div className="flex items-center gap-3">
+                  <span className="w-10 h-10 rounded-2xl bg-[#00F0FF]/15 text-[#00F0FF] border border-[#00F0FF]/30 flex items-center justify-center text-base">
+                    <i className="fa-solid fa-headset"></i>
+                  </span>
+                  <div>
+                    <h3 className="text-base font-bold text-white font-tech">
+                      Solicitud de Activación de Canal Oficial
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      Configuración asistida y verificada por el equipo de ingeniería KorevX
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsRequestModalOpen(false)}
+                  className="w-8 h-8 rounded-xl bg-[#080C14] hover:bg-[#121824] text-slate-400 hover:text-white border border-[#141B29] flex items-center justify-center text-xs transition"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              {requestSuccess ? (
+                <div className="p-6 rounded-2xl bg-emerald-950/25 border border-emerald-500/40 text-center space-y-3">
+                  <div className="w-12 h-12 mx-auto rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-xl">
+                    <i className="fa-solid fa-circle-check"></i>
+                  </div>
+                  <h4 className="text-sm font-bold text-white font-tech">¡Solicitud Enviada con Éxito!</h4>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Hemos recibido los datos de tu cuenta. Nuestro equipo técnico validará los permisos en Meta y activará tu canal oficial en un plazo estimado de <strong>2 a 4 horas</strong>.
+                  </p>
+                </div>
+              ) : (
+                <form onSubmit={handleSendChannelRequest} className="space-y-4">
+                  <div className="p-3.5 rounded-xl bg-cyan-950/20 border border-cyan-800/30 text-xs text-slate-300 leading-relaxed flex items-start gap-2.5">
+                    <i className="fa-solid fa-shield-halved text-[#00F0FF] text-sm mt-0.5 flex-shrink-0"></i>
+                    <span>
+                      Para evitar fallos de conexión, suspensiones de API y errores con tokens temporales, <strong>KorevX configura directamente tus canales oficiales</strong> bajo los más altos estándares de seguridad y cifrado.
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-400 uppercase font-tech block mb-1.5">
+                      Red Social Solicitada <span className="text-rose-400">*</span>
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {(['WHATSAPP', 'INSTAGRAM', 'FACEBOOK', 'TIKTOK'] as PlatformType[]).map((plt) => {
+                        const isSelected = requestPlatform === plt;
+                        return (
+                          <button
+                            key={plt}
+                            type="button"
+                            onClick={() => setRequestPlatform(plt)}
+                            className={`p-2.5 rounded-xl border text-xs font-tech font-bold flex flex-col items-center gap-1 transition ${
+                              isSelected
+                                ? 'bg-[#00F0FF]/15 border-[#00F0FF] text-[#00F0FF] shadow-sm shadow-[#00F0FF]/20'
+                                : 'bg-[#080C14] border-[#141B29] text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            <i
+                              className={
+                                plt === 'WHATSAPP'
+                                  ? 'fa-brands fa-whatsapp text-emerald-400'
+                                  : plt === 'INSTAGRAM'
+                                  ? 'fa-brands fa-instagram text-rose-400'
+                                  : plt === 'FACEBOOK'
+                                  ? 'fa-brands fa-facebook-f text-blue-400'
+                                  : 'fa-brands fa-tiktok text-cyan-400'
+                              }
+                            ></i>
+                            <span className="text-[10px] capitalize">{plt.toLowerCase()}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-400 uppercase font-tech block mb-1.5">
+                      Nombre Comercial de la Cuenta / Negocio <span className="text-rose-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="ej. Calzado Gómez Sucursal Centro"
+                      value={requestAccountName}
+                      onChange={(e) => setRequestAccountName(e.target.value)}
+                      className="w-full bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl p-2.5 text-xs text-white placeholder-slate-500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-400 uppercase font-tech block mb-1.5">
+                        {requestPlatform === 'WHATSAPP'
+                          ? 'Número de WhatsApp a Conectar'
+                          : requestPlatform === 'INSTAGRAM'
+                          ? 'Usuario de Instagram (@)'
+                          : 'Enlace / ID de la Página'} <span className="text-rose-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder={
+                          requestPlatform === 'WHATSAPP'
+                            ? '+57 320 0000000'
+                            : requestPlatform === 'INSTAGRAM'
+                            ? '@miempresa'
+                            : 'facebook.com/miempresa'
+                        }
+                        value={requestIdentifier}
+                        onChange={(e) => setRequestIdentifier(e.target.value)}
+                        className="w-full bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl p-2.5 text-xs text-white placeholder-slate-500 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-400 uppercase font-tech block mb-1.5">
+                        Teléfono de Contacto (Para Coordinar)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="ej. +57 310 1234567"
+                        value={requestContactPhone}
+                        onChange={(e) => setRequestContactPhone(e.target.value)}
+                        className="w-full bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl p-2.5 text-xs text-white placeholder-slate-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-400 uppercase font-tech block mb-1.5">
+                      Notas o Instrucciones Especiales (Opcional)
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="ej. El número ya tiene WhatsApp Business instalado o es una línea totalmente nueva..."
+                      value={requestNotes}
+                      onChange={(e) => setRequestNotes(e.target.value)}
+                      className="w-full bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl p-2.5 text-xs text-white placeholder-slate-500"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#111726]">
+                    <button
+                      type="button"
+                      onClick={() => setIsRequestModalOpen(false)}
+                      className="px-4 py-2 rounded-xl bg-[#080C14] border border-[#141B29] text-slate-400 hover:text-white text-xs font-semibold"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmittingRequest || !requestAccountName.trim() || !requestIdentifier.trim()}
+                      className="px-5 py-2.5 rounded-xl bg-[#00F0FF] hover:bg-[#00D7E5] disabled:opacity-40 disabled:cursor-not-allowed text-[#030508] text-xs font-bold font-tech shadow-md shadow-[#00F0FF]/20 transition flex items-center gap-2"
+                    >
+                      {isSubmittingRequest ? (
+                        <>
+                          <i className="fa-solid fa-spinner fa-spin text-xs"></i>
+                          <span>Enviando Solicitud...</span>
+                        </>
+                      ) : (
+                        <>
+                          <i className="fa-solid fa-paper-plane text-xs"></i>
+                          <span>Enviar Solicitud a Soporte</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>,
           document.body

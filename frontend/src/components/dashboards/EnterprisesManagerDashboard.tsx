@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { soundManager } from '../../utils/audio';
+import { getBaseUrl } from '../../services/api';
+import { PlatformType } from '../../types';
 
 export interface ChannelLimits {
   FACEBOOK: number;
@@ -127,6 +129,25 @@ export const EnterprisesManagerDashboard: React.FC<EnterprisesManagerDashboardPr
   const [isLoadingOperators, setIsLoadingOperators] = useState(false);
   const [operatorActionMessage, setOperatorActionMessage] = useState<string | null>(null);
 
+  // Modal y gestión de Canales Oficiales por Empresa (Super Admin)
+  const [selectedEnterpriseForChannels, setSelectedEnterpriseForChannels] = useState<EnterpriseItem | null>(null);
+  const [enterpriseChannelsList, setEnterpriseChannelsList] = useState<any[]>([]);
+  const [isLoadingChannels, setIsLoadingChannels] = useState(false);
+  const [channelActionMessage, setChannelActionMessage] = useState<string | null>(null);
+
+  // Formulario para vincular canal
+  const [newChanPlatform, setNewChanPlatform] = useState<PlatformType>('WHATSAPP');
+  const [newChanAccountName, setNewChanAccountName] = useState('');
+  const [newChanHandle, setNewChanHandle] = useState('');
+  const [newChanExternalId, setNewChanExternalId] = useState('');
+  const [newChanToken, setNewChanToken] = useState('');
+  const [isSavingNewChan, setIsSavingNewChan] = useState(false);
+
+  // Editar token de canal existente
+  const [editingChanTokenId, setEditingChanTokenId] = useState<string | null>(null);
+  const [editingChanTokenValue, setEditingChanTokenValue] = useState('');
+  const [isSavingChanToken, setIsSavingChanToken] = useState(false);
+
   // Cargar empresas desde backend
   const fetchEnterprises = async () => {
     setIsLoading(true);
@@ -251,6 +272,136 @@ export const EnterprisesManagerDashboard: React.FC<EnterprisesManagerDashboardPr
       fetchEnterprises();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Error actualizando estado de la empresa');
+    }
+  };
+
+  const handleOpenChannelsModal = async (ent: EnterpriseItem) => {
+    setSelectedEnterpriseForChannels(ent);
+    setChannelActionMessage(null);
+    setNewChanAccountName('');
+    setNewChanHandle('');
+    setNewChanExternalId('');
+    setNewChanToken('');
+    setEditingChanTokenId(null);
+    setIsLoadingChannels(true);
+
+    try {
+      const res = await axios.get(`${getBaseUrl()}/channels?workspaceId=${ent.id}`);
+      if (res.data && Array.isArray(res.data)) {
+        setEnterpriseChannelsList(res.data);
+      } else {
+        const local = localStorage.getItem(`korevx_channels_${ent.id}`);
+        setEnterpriseChannelsList(local ? JSON.parse(local) : []);
+      }
+    } catch {
+      const local = localStorage.getItem(`korevx_channels_${ent.id}`);
+      setEnterpriseChannelsList(local ? JSON.parse(local) : []);
+    } finally {
+      setIsLoadingChannels(false);
+    }
+  };
+
+  const handleCreateChannelForEnterprise = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEnterpriseForChannels || !newChanAccountName.trim()) return;
+    setIsSavingNewChan(true);
+    setChannelActionMessage(null);
+
+    const entId = selectedEnterpriseForChannels.id;
+    const cleanHandle = newChanHandle.trim() || `@${newChanAccountName.trim().toLowerCase().replace(/\s+/g, '')}`;
+    const cleanExtId = newChanExternalId.trim() || undefined;
+    const effToken = newChanToken.trim() || `live-token-${Date.now()}`;
+
+    try {
+      const res = await axios.post(`${getBaseUrl()}/channels`, {
+        workspaceId: entId,
+        platform: newChanPlatform,
+        accountName: newChanAccountName.trim(),
+        accountHandle: cleanHandle,
+        externalAccountId: cleanExtId,
+        accessToken: effToken,
+      });
+
+      const created = res.data || {
+        id: `chan-${newChanPlatform.toLowerCase()}-${Date.now()}`,
+        workspaceId: entId,
+        platform: newChanPlatform,
+        accountName: newChanAccountName.trim(),
+        accountHandle: cleanHandle,
+        externalAccountId: cleanExtId,
+        accessToken: effToken,
+        isActive: true,
+      };
+
+      setEnterpriseChannelsList((prev) => [created, ...prev]);
+
+      // Guardar también en localStorage para consistencia offline
+      const localKey = `korevx_channels_${entId}`;
+      const existing = localStorage.getItem(localKey);
+      const list = existing ? JSON.parse(existing) : [];
+      list.push(created);
+      localStorage.setItem(localKey, JSON.stringify(list));
+
+      soundManager.playSuccess();
+      setChannelActionMessage(`✅ Canal "${newChanAccountName.trim()}" (${newChanPlatform}) vinculado y activado en ${selectedEnterpriseForChannels.name}.`);
+      setNewChanAccountName('');
+      setNewChanHandle('');
+      setNewChanExternalId('');
+      setNewChanToken('');
+      fetchEnterprises();
+    } catch (err: any) {
+      soundManager.playWarning();
+      setChannelActionMessage(`❌ Error vinculando canal: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setIsSavingNewChan(false);
+    }
+  };
+
+  const handleDeleteChannelForEnterprise = async (channelId: string) => {
+    if (!selectedEnterpriseForChannels) return;
+    if (!window.confirm('¿Confirmas la desvinculación y eliminación de este canal oficial para esta empresa?')) return;
+
+    const entId = selectedEnterpriseForChannels.id;
+    try {
+      await axios.delete(`${getBaseUrl()}/channels/${channelId}`);
+      setEnterpriseChannelsList((prev) => prev.filter((c) => c.id !== channelId));
+
+      const localKey = `korevx_channels_${entId}`;
+      const existing = localStorage.getItem(localKey);
+      if (existing) {
+        const list = JSON.parse(existing).filter((c: any) => c.id !== channelId);
+        localStorage.setItem(localKey, JSON.stringify(list));
+      }
+      soundManager.playSuccess();
+      setChannelActionMessage('✅ Canal eliminado correctamente.');
+      fetchEnterprises();
+    } catch (err: any) {
+      soundManager.playWarning();
+      setChannelActionMessage(`❌ Error eliminando canal: ${err.response?.data?.message || err.message}`);
+    }
+  };
+
+  const handleSaveChannelTokenForEnterprise = async (channelId: string) => {
+    if (!editingChanTokenValue.trim()) return;
+    setIsSavingChanToken(true);
+    setChannelActionMessage(null);
+
+    try {
+      await axios.patch(`${getBaseUrl()}/channels/${channelId}/token`, {
+        accessToken: editingChanTokenValue.trim(),
+      });
+      setEnterpriseChannelsList((prev) =>
+        prev.map((c) => (c.id === channelId ? { ...c, accessToken: editingChanTokenValue.trim() } : c))
+      );
+      soundManager.playSuccess();
+      setChannelActionMessage('✅ Token de acceso actualizado exitosamente.');
+      setEditingChanTokenId(null);
+      setEditingChanTokenValue('');
+    } catch (err: any) {
+      soundManager.playWarning();
+      setChannelActionMessage(`❌ Error actualizando token: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setIsSavingChanToken(false);
     }
   };
 
@@ -1064,13 +1215,23 @@ export const EnterprisesManagerDashboard: React.FC<EnterprisesManagerDashboardPr
 
                   {/* Telemetría: Canales Conectados vs Creados */}
                   <div className="grid grid-cols-2 gap-2 my-2">
-                    <div className="p-2 rounded-xl bg-[#080C14] border border-[#141B29] text-center">
-                      <span className="text-[10px] text-slate-400 font-tech uppercase block">
-                        Canales Conectados
-                      </span>
-                      <span className={`text-xs font-bold font-tech ${channelCount === 0 ? 'text-slate-500' : 'text-[#00F0FF]'}`}>
-                        {channelCount === 0 ? '0 Canales (Limpio)' : `${channelCount} Conectados`}
-                      </span>
+                    <div className="p-2 rounded-xl bg-[#080C14] border border-[#141B29] text-center flex flex-col justify-between">
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-tech uppercase block">
+                          Canales Conectados
+                        </span>
+                        <span className={`text-xs font-bold font-tech ${channelCount === 0 ? 'text-slate-500' : 'text-[#00F0FF]'}`}>
+                          {channelCount === 0 ? '0 Canales' : `${channelCount} Conectados`}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleOpenChannelsModal(ent)}
+                        className="mt-1 w-full py-1 rounded-lg bg-[#00F0FF]/10 hover:bg-[#00F0FF]/20 text-[#00F0FF] border border-[#00F0FF]/30 text-[10px] font-tech font-bold flex items-center justify-center gap-1 transition"
+                        title="Gestionar canales oficiales, vincular tokens y IDs"
+                      >
+                        <i className="fa-solid fa-satellite-dish text-[9px]"></i>
+                        <span>Gestionar Canales</span>
+                      </button>
                     </div>
 
                     <div className="p-2 rounded-xl bg-[#080C14] border border-[#141B29] text-center flex flex-col justify-between">
@@ -2053,6 +2214,317 @@ export const EnterprisesManagerDashboard: React.FC<EnterprisesManagerDashboardPr
                 <button
                   type="button"
                   onClick={() => setSelectedEnterpriseForOperators(null)}
+                  className="px-4 py-2 rounded-xl bg-[#080C14] hover:bg-[#0E1524] border border-[#141B29] text-xs font-semibold text-slate-300 hover:text-white transition font-tech"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+      {/* Modal para Gestión de Canales Oficiales por Empresa (Super Admin) */}
+      {selectedEnterpriseForChannels &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+            <div className="w-full max-w-2xl bg-[#05080F] border border-[#00F0FF]/40 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-cyan-950/40 space-y-5 max-h-[90vh] overflow-y-auto">
+              
+              {/* Encabezado */}
+              <div className="flex items-center justify-between pb-3 border-b border-[#141B29]">
+                <div className="flex items-center gap-3">
+                  <span className="w-10 h-10 rounded-2xl bg-[#00F0FF]/15 text-[#00F0FF] border border-[#00F0FF]/30 flex items-center justify-center text-base">
+                    <i className="fa-solid fa-satellite-dish"></i>
+                  </span>
+                  <div>
+                    <h3 className="text-base font-bold text-white font-tech">
+                      Canales Oficiales — {selectedEnterpriseForChannels.name}
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      Gobernanza Super Admin · Aislamiento Multi-Tenant estricto
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedEnterpriseForChannels(null)}
+                  className="w-8 h-8 rounded-xl bg-[#080C14] hover:bg-[#121824] text-slate-400 hover:text-white border border-[#141B29] flex items-center justify-center text-xs transition"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              {/* Mensajes de feedback */}
+              {channelActionMessage && (
+                <div className="p-3 rounded-xl bg-cyan-950/30 border border-[#00F0FF]/40 text-xs text-cyan-200 flex items-center justify-between">
+                  <span>{channelActionMessage}</span>
+                  <button onClick={() => setChannelActionMessage(null)} className="text-slate-400 hover:text-white text-xs">
+                    <i className="fa-solid fa-xmark"></i>
+                  </button>
+                </div>
+              )}
+
+              {/* Sección 1: Canales Actualmente Vinculados */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-slate-300 uppercase font-tech flex items-center gap-2">
+                    <i className="fa-solid fa-circle-nodes text-[#00F0FF]"></i>
+                    <span>Canales Activos ({enterpriseChannelsList.length})</span>
+                  </h4>
+                  <span className="text-[10px] text-slate-500 font-tech">
+                    Workspace: <code className="text-slate-400">{selectedEnterpriseForChannels.id.substring(0, 8)}...</code>
+                  </span>
+                </div>
+
+                {isLoadingChannels ? (
+                  <div className="p-6 text-center text-xs text-slate-400 font-tech">
+                    <i className="fa-solid fa-spinner fa-spin text-base text-[#00F0FF] mb-2 block"></i>
+                    Cargando canales oficiales de la empresa...
+                  </div>
+                ) : enterpriseChannelsList.length === 0 ? (
+                  <div className="p-5 rounded-2xl bg-[#080C14] border border-[#141B29] text-center text-xs text-slate-400">
+                    <i className="fa-solid fa-satellite-dish text-2xl text-slate-600 mb-2 block"></i>
+                    Esta empresa aún no tiene canales oficiales conectados.
+                    <p className="text-[11px] text-slate-500 mt-1">Usa el formulario de abajo para vincular su primera cuenta de WhatsApp, Instagram o Facebook.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    {enterpriseChannelsList.map((chan) => (
+                      <div
+                        key={chan.id}
+                        className="p-3 rounded-xl bg-[#080C14] border border-[#141B29] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs ${
+                              chan.platform === 'WHATSAPP'
+                                ? 'bg-emerald-500/20 text-emerald-400'
+                                : chan.platform === 'INSTAGRAM'
+                                ? 'bg-rose-500/20 text-rose-400'
+                                : chan.platform === 'FACEBOOK'
+                                ? 'bg-blue-500/20 text-blue-400'
+                                : 'bg-cyan-500/20 text-cyan-400'
+                            }`}
+                          >
+                            <i
+                              className={
+                                chan.platform === 'WHATSAPP'
+                                  ? 'fa-brands fa-whatsapp'
+                                  : chan.platform === 'INSTAGRAM'
+                                  ? 'fa-brands fa-instagram'
+                                  : chan.platform === 'FACEBOOK'
+                                  ? 'fa-brands fa-facebook-f'
+                                  : 'fa-brands fa-tiktok'
+                              }
+                            ></i>
+                          </span>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-white font-tech">{chan.accountName}</span>
+                              <span
+                                className={`px-2 py-0.2 rounded-full text-[9px] font-bold ${
+                                  chan.isActive
+                                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                    : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                                }`}
+                              >
+                                {chan.isActive ? 'Activo' : 'Pausado'}
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-slate-400 font-mono">
+                              {chan.accountHandle || chan.externalAccountId || 'Sin handle'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {editingChanTokenId === chan.id ? (
+                            <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                              <input
+                                type="password"
+                                placeholder="EAA... nuevo token"
+                                value={editingChanTokenValue}
+                                onChange={(e) => setEditingChanTokenValue(e.target.value)}
+                                className="px-2 py-1 bg-[#05080F] border border-[#00F0FF]/50 rounded-lg text-xs text-white placeholder-slate-600 font-mono"
+                              />
+                              <button
+                                onClick={() => handleSaveChannelTokenForEnterprise(chan.id)}
+                                disabled={isSavingChanToken || !editingChanTokenValue.trim()}
+                                className="px-2 py-1 rounded-lg bg-[#00F0FF] text-black font-bold text-xs"
+                              >
+                                {isSavingChanToken ? '...' : 'OK'}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingChanTokenId(null);
+                                  setEditingChanTokenValue('');
+                                }}
+                                className="px-2 py-1 rounded-lg bg-slate-800 text-slate-300 text-xs"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setEditingChanTokenId(chan.id);
+                                  setEditingChanTokenValue(
+                                    chan.accessToken && !chan.accessToken.startsWith('live-token-') && !chan.accessToken.includes('demo')
+                                      ? chan.accessToken
+                                      : ''
+                                  );
+                                }}
+                                className="px-2 py-1 rounded-lg bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 border border-cyan-800/40 text-[10px] font-tech font-bold flex items-center gap-1"
+                                title="Editar token de acceso Meta de este canal"
+                              >
+                                <i className="fa-solid fa-key text-[9px]"></i>
+                                <span>Token</span>
+                              </button>
+
+                              <button
+                                onClick={() => handleDeleteChannelForEnterprise(chan.id)}
+                                className="px-2 py-1 rounded-lg bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-800/40 text-[10px] font-tech font-bold flex items-center gap-1"
+                                title="Eliminar canal oficial"
+                              >
+                                <i className="fa-solid fa-trash text-[9px]"></i>
+                                <span>Eliminar</span>
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Sección 2: Formulario para Vincular Nuevo Canal a esta Empresa */}
+              <div className="p-4 rounded-2xl bg-[#080C14] border border-[#141B29] space-y-3">
+                <h4 className="text-xs font-bold text-white uppercase font-tech flex items-center gap-2">
+                  <i className="fa-solid fa-plus-circle text-[#00F0FF]"></i>
+                  <span>Vincular Nuevo Canal a {selectedEnterpriseForChannels.name}</span>
+                </h4>
+
+                <form onSubmit={handleCreateChannelForEnterprise} className="space-y-3 text-xs">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase font-tech block mb-1">
+                      Plataforma
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {(['WHATSAPP', 'INSTAGRAM', 'FACEBOOK', 'TIKTOK'] as PlatformType[]).map((plt) => {
+                        const isSelected = newChanPlatform === plt;
+                        return (
+                          <button
+                            key={plt}
+                            type="button"
+                            onClick={() => setNewChanPlatform(plt)}
+                            className={`p-2 rounded-xl border text-xs font-tech font-bold flex items-center justify-center gap-1.5 transition ${
+                              isSelected
+                                ? 'bg-[#00F0FF]/15 border-[#00F0FF] text-[#00F0FF]'
+                                : 'bg-[#05080F] border-[#141B29] text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            <i
+                              className={
+                                plt === 'WHATSAPP'
+                                  ? 'fa-brands fa-whatsapp text-emerald-400'
+                                  : plt === 'INSTAGRAM'
+                                  ? 'fa-brands fa-instagram text-rose-400'
+                                  : plt === 'FACEBOOK'
+                                  ? 'fa-brands fa-facebook-f text-blue-400'
+                                  : 'fa-brands fa-tiktok text-cyan-400'
+                              }
+                            ></i>
+                            <span className="capitalize text-[10px]">{plt.toLowerCase()}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase font-tech block mb-1">
+                        Nombre del Canal Oficial <span className="text-rose-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="ej. WhatsApp Soporte Oficial"
+                        value={newChanAccountName}
+                        onChange={(e) => setNewChanAccountName(e.target.value)}
+                        className="w-full bg-[#05080F] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl p-2.5 text-xs text-white placeholder-slate-600 font-tech"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase font-tech block mb-1">
+                        {newChanPlatform === 'WHATSAPP'
+                          ? 'Phone Number ID de Meta'
+                          : newChanPlatform === 'FACEBOOK'
+                          ? 'Page ID de Facebook'
+                          : newChanPlatform === 'INSTAGRAM'
+                          ? 'Instagram Business ID'
+                          : 'Handle / ID'} <span className="text-rose-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="ej. 109283746501928"
+                        value={newChanExternalId}
+                        onChange={(e) => {
+                          setNewChanExternalId(e.target.value);
+                          if (!newChanHandle) setNewChanHandle(e.target.value);
+                        }}
+                        className="w-full bg-[#05080F] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl p-2.5 text-xs text-white placeholder-slate-600 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase font-tech block mb-1 flex items-center justify-between">
+                      <span>Token de Acceso de Página / Meta Token</span>
+                      <span className="text-[9px] text-cyan-400">Token EAA... de larga duración</span>
+                    </label>
+                    <input
+                      type="password"
+                      placeholder="EAA... Token generado en Meta for Developers"
+                      value={newChanToken}
+                      onChange={(e) => setNewChanToken(e.target.value)}
+                      className="w-full bg-[#05080F] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl p-2.5 text-xs text-white placeholder-slate-600 font-mono"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2">
+                    <button
+                      type="submit"
+                      disabled={isSavingNewChan || !newChanAccountName.trim() || !newChanExternalId.trim()}
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#00F0FF] to-blue-500 hover:from-[#00D7E5] hover:to-blue-600 disabled:opacity-40 text-black font-bold text-xs font-tech shadow-md shadow-[#00F0FF]/20 flex items-center gap-1.5 transition"
+                    >
+                      {isSavingNewChan ? (
+                        <>
+                          <i className="fa-solid fa-spinner fa-spin text-xs"></i>
+                          <span>Activando Canal...</span>
+                        </>
+                      ) : (
+                        <>
+                          <i className="fa-solid fa-check text-xs"></i>
+                          <span>Vincular y Activar Canal</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Pie del modal */}
+              <div className="pt-2 border-t border-[#141B29] flex items-center justify-between">
+                <span className="text-[10px] text-slate-500 font-tech">
+                  KorevX Omnichannel Enterprise Manager
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedEnterpriseForChannels(null)}
                   className="px-4 py-2 rounded-xl bg-[#080C14] hover:bg-[#0E1524] border border-[#141B29] text-xs font-semibold text-slate-300 hover:text-white transition font-tech"
                 >
                   Cerrar
