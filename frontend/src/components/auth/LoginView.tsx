@@ -11,6 +11,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSuccess }) => {
   const serverStatus = useServerStatus();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Estado para modal obligatorio de cambio de contraseña
@@ -87,16 +88,16 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSuccess }) => {
       <div className="absolute bottom-10 right-10 w-[300px] h-[300px] bg-[#10B981]/5 rounded-full blur-[100px] pointer-events-none" />
 
       {/* Tarjeta de Autenticación */}
-      <div className="relative z-10 w-full max-w-md bg-[#05080F]/90 backdrop-blur-2xl border border-[#141B29] hover:border-[#00F0FF]/40 rounded-3xl p-8 sm:p-10 shadow-2xl shadow-black/80 transition-all duration-300 fade-in">
+      <div className="relative z-10 w-full max-w-[380px] bg-[#05080F]/90 backdrop-blur-2xl border border-[#141B29] hover:border-[#00F0FF]/40 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-black/80 transition-all duration-300 fade-in">
         
         {/* Cabecera con Emblema 3D Metálico */}
-        <div className="flex flex-col items-center text-center mb-8">
+        <div className="flex flex-col items-center text-center mb-6">
           <div className="relative group mb-3">
             <div className="absolute -inset-1 bg-gradient-to-r from-[#00F0FF] to-[#0072FF] rounded-2xl blur-md opacity-40 group-hover:opacity-75 transition duration-300"></div>
             <img 
               src="/logo-korevx.png" 
               alt="KorevX Official Logo" 
-              className="relative w-16 h-16 rounded-2xl object-cover ring-1 ring-[#00F0FF]/50 shadow-xl"
+              className="relative w-14 h-14 rounded-2xl object-cover ring-1 ring-[#00F0FF]/50 shadow-xl"
             />
           </div>
 
@@ -114,7 +115,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSuccess }) => {
         </div>
 
         {errorMessage && (
-          <div className="mb-5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2.5">
+          <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2.5">
             <i className="fa-solid fa-triangle-exclamation text-rose-400 text-sm flex-shrink-0"></i>
             <span>{errorMessage}</span>
           </div>
@@ -146,13 +147,22 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSuccess }) => {
             <div className="relative">
               <i className="fa-solid fa-lock absolute left-3.5 top-3.5 text-slate-500 text-xs"></i>
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 required
                 placeholder="••••••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-10 pr-3.5 py-2.5 bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none transition"
+                className="w-full pl-10 pr-10 py-2.5 bg-[#080C14] border border-[#141B29] focus:border-[#00F0FF]/60 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none transition"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3.5 top-2.5 text-slate-500 hover:text-[#00F0FF] text-xs p-1 focus:outline-none transition"
+                tabIndex={-1}
+                title={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+              >
+                <i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+              </button>
             </div>
           </div>
 
