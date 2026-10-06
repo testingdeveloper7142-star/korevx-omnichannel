@@ -32,6 +32,7 @@ export interface EnterpriseItem {
   nit?: string;
   industry: string;
   plan?: string;
+  logoUrl?: string;
   activeChannels: string[];
   channelLimits?: ChannelLimits;
   operatorCount: number;
@@ -53,6 +54,24 @@ export interface EnterpriseItem {
 export interface EnterprisesManagerDashboardProps {
   onAuditEnterprise?: (enterprise: EnterpriseItem) => void;
 }
+
+export const getEnterpriseLogo = (ent: { id: string; logoUrl?: string }): string | null => {
+  if (ent.logoUrl) return ent.logoUrl;
+  try {
+    const profStr = localStorage.getItem(`korevx_company_profile_${ent.id}`);
+    if (profStr) {
+      const p = JSON.parse(profStr);
+      if (p.logoUrl) return p.logoUrl;
+    }
+    const savedEnts = localStorage.getItem('korevx_custom_enterprises');
+    if (savedEnts) {
+      const list = JSON.parse(savedEnts);
+      const found = list.find((e: any) => e.id === ent.id);
+      if (found && found.logoUrl) return found.logoUrl;
+    }
+  } catch {}
+  return null;
+};
 
 export const EnterprisesManagerDashboard: React.FC<EnterprisesManagerDashboardProps> = ({
   onAuditEnterprise,
@@ -200,6 +219,7 @@ export const EnterprisesManagerDashboard: React.FC<EnterprisesManagerDashboardPr
             adminId: item.adminId || matchAdmin?.id,
             adminEmail: item.adminEmail || matchAdmin?.email || 'admin@' + (item.slug || 'empresa') + '.com',
             techLead: item.techLead || matchAdmin?.fullName || 'Administrador',
+            logoUrl: getEnterpriseLogo(item) || item.logoUrl,
           };
         });
 
@@ -1087,9 +1107,33 @@ export const EnterprisesManagerDashboard: React.FC<EnterprisesManagerDashboardPr
                   {/* Encabezado de la Tarjeta */}
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0E1524] to-[#162032] border border-[#1C2A44] flex items-center justify-center text-[#00F0FF] text-base font-bold font-tech shadow-sm">
-                        {ent.name.substring(0, 2).toUpperCase()}
-                      </div>
+                      {(() => {
+                        const logo = getEnterpriseLogo(ent);
+                        if (logo) {
+                          return (
+                            <div className="w-10 h-10 rounded-xl bg-[#0E1524] border border-[#1C2A44] flex items-center justify-center p-1 overflow-hidden shadow-sm flex-shrink-0">
+                              <img
+                                src={logo}
+                                alt={ent.name}
+                                className="w-full h-full object-contain rounded-lg"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLElement).style.display = 'none';
+                                  const fallback = e.currentTarget.parentElement?.querySelector('.logo-fallback') as HTMLElement;
+                                  if (fallback) fallback.style.display = 'flex';
+                                }}
+                              />
+                              <div className="logo-fallback hidden w-full h-full items-center justify-center text-[#00F0FF] text-base font-bold font-tech">
+                                {ent.name.substring(0, 2).toUpperCase()}
+                              </div>
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0E1524] to-[#162032] border border-[#1C2A44] flex items-center justify-center text-[#00F0FF] text-base font-bold font-tech shadow-sm flex-shrink-0">
+                            {ent.name.substring(0, 2).toUpperCase()}
+                          </div>
+                        );
+                      })()}
                       <div>
                         <h3 className="text-sm font-bold text-white group-hover:text-[#00F0FF] transition">
                           {ent.name}
@@ -1288,14 +1332,14 @@ export const EnterprisesManagerDashboard: React.FC<EnterprisesManagerDashboardPr
                       title={
                         localStorage.getItem(`korevx_allow_external_audit_${ent.id}`) === 'true'
                           ? 'Empresa autorizó inspección. Clic para ver Bitácora de Auditoría & Logs forenses.'
-                          : 'Empresa mantiene bloqueada la auditoría externa por privacidad. Clic para ver detalle de restricción.'
+                          : 'Auditoría bloqueada por política de privacidad. Clic para consultar o habilitar modo auditoría.'
                       }
                     >
-                      <i className={`fa-solid ${localStorage.getItem(`korevx_allow_external_audit_${ent.id}`) === 'true' ? 'fa-shield-halved text-cyan-400' : 'fa-lock text-slate-500'} text-xs`}></i>
+                      <i className={`fa-solid ${localStorage.getItem(`korevx_allow_external_audit_${ent.id}`) === 'true' ? 'fa-shield-halved text-cyan-400' : 'fa-lock text-slate-400'} text-xs`}></i>
                       <span>
                         {localStorage.getItem(`korevx_allow_external_audit_${ent.id}`) === 'true'
                           ? '🔍 Ver Bitácora & Logs de Auditoría'
-                          : '🔒 Logs de Auditoría Bloqueados'}
+                          : '🔒 Logs Bloqueados (Clic para ver/habilitar)'}
                       </span>
                     </button>
                   )}

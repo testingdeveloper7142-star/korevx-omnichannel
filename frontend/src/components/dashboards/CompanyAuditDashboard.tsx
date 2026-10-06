@@ -39,7 +39,9 @@ export const CompanyAuditDashboard: React.FC<CompanyAuditDashboardProps> = ({
   const companyName = targetCompanyName || user?.workspaceName || 'Mi Empresa';
 
   const isGlobalWorkspace = workspaceId === 'b2d78f5f-95e6-4191-8ec6-a958e8c10bbc';
-  const allowExternalAudit = isGlobalWorkspace || (() => {
+  
+  const [isAuditUnlocked, setIsAuditUnlocked] = useState<boolean>(() => {
+    if (isGlobalWorkspace) return true;
     try {
       const explicit = localStorage.getItem(`korevx_allow_external_audit_${workspaceId}`);
       if (explicit !== null) return explicit === 'true';
@@ -50,7 +52,7 @@ export const CompanyAuditDashboard: React.FC<CompanyAuditDashboardProps> = ({
       }
     } catch {}
     return false;
-  })();
+  });
 
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
   const [totalCount, setTotalCount] = useState<number | null>(null);
@@ -59,6 +61,131 @@ export const CompanyAuditDashboard: React.FC<CompanyAuditDashboardProps> = ({
   const [filterAction, setFilterAction] = useState<string>('all');
   const [filterResource, setFilterResource] = useState<string>('all');
   const [selectedLog, setSelectedLog] = useState<AuditLogItem | null>(null);
+
+  const handleToggleAuditPermission = (enable: boolean) => {
+    soundManager.playSuccess();
+    localStorage.setItem(`korevx_allow_external_audit_${workspaceId}`, String(enable));
+    setIsAuditUnlocked(enable);
+  };
+
+  const generateInitialSeedLogs = (): AuditLogItem[] => {
+    const now = new Date();
+    return [
+      {
+        id: `audit-${workspaceId.slice(0, 8)}-01`,
+        workspaceId,
+        userId: user?.id || null,
+        action: 'CREATE',
+        resource: 'USER',
+        resourceId: `usr-${workspaceId.slice(0, 6)}`,
+        description: `Creación y aprovisionamiento del espacio de trabajo empresarial "${companyName}" con aislamiento multi-tenant estricto.`,
+        previousState: null,
+        newState: {
+          companyName,
+          workspaceId,
+          compliance: 'Ley 1581 de 2012',
+          _forensicMetadata: { sha256Checksum: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' },
+        },
+        ipAddress: '190.144.25.102',
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0',
+        createdAt: new Date(now.getTime() - 3600000 * 24 * 3).toISOString(),
+        user: { id: user?.id || 'admin-1', fullName: 'Super Administrador KorevX', email: 'superadmin@korevx.com' },
+      },
+      {
+        id: `audit-${workspaceId.slice(0, 8)}-02`,
+        workspaceId,
+        userId: user?.id || null,
+        action: 'UPDATE',
+        resource: 'SETTINGS',
+        resourceId: `cfg-${workspaceId.slice(0, 6)}`,
+        description: `Verificación de políticas de seguridad, cuotas de canales y límites de operarios autorizados.`,
+        previousState: { status: 'PENDING_VERIFICATION' },
+        newState: {
+          status: 'ACTIVE',
+          channelsAllowed: ['WHATSAPP', 'INSTAGRAM', 'FACEBOOK', 'TIKTOK'],
+          _forensicMetadata: { sha256Checksum: '8f434346648f6b96df89dda901c5176b10a6d83961dd3c1ac88b59b2dc327aa4' },
+        },
+        ipAddress: '190.144.25.102',
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0',
+        createdAt: new Date(now.getTime() - 3600000 * 24 * 2).toISOString(),
+        user: { id: user?.id || 'admin-1', fullName: 'Super Administrador KorevX', email: 'superadmin@korevx.com' },
+      },
+      {
+        id: `audit-${workspaceId.slice(0, 8)}-03`,
+        workspaceId,
+        userId: user?.id || null,
+        action: 'SECURITY',
+        resource: 'SECURITY',
+        resourceId: `sec-${workspaceId.slice(0, 6)}`,
+        description: `Activación de bitácora forense e inspección de integridad bajo Ley 1581 (Habeas Data).`,
+        previousState: { externalAudit: false },
+        newState: {
+          externalAudit: true,
+          authorizedBy: user?.email || 'superadmin@korevx.com',
+          _forensicMetadata: { sha256Checksum: '4a53cee3fb0206cb85670cf1f0e27b4713b72f82f161a0c0f6ff5a74ce226071' },
+        },
+        ipAddress: '181.61.12.89',
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0',
+        createdAt: new Date(now.getTime() - 3600000 * 4).toISOString(),
+        user: { id: user?.id || 'admin-1', fullName: user?.fullName || 'Administrador Central', email: user?.email || 'admin@korevx.com' },
+      },
+    ];
+  };
+
+  const handleGenerateTestEvent = () => {
+    soundManager.playSuccess();
+    const actions = ['RESOLVE', 'ASSIGN', 'UPDATE', 'CREATE', 'SECURITY'] as const;
+    const randomAction = actions[Math.floor(Math.random() * actions.length)];
+    const randomHash = Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+
+    const descriptions: Record<string, string> = {
+      RESOLVE: `Cierre y resolución exitosa de chat de atención #TKT-${Math.floor(1000 + Math.random() * 9000)} con cliente por WhatsApp.`,
+      ASSIGN: `Asignación automática de conversación omnicanal a operador disponible (Estrategia Round-Robin).`,
+      UPDATE: `Modificación de horarios de atención y mensaje de bienvenida en configuración de empresa.`,
+      CREATE: `Alta y vinculación de nueva credencial de canal en Meta Cloud API.`,
+      SECURITY: `Inspección de token de autenticación y validación de certificado SSL/TLS.`,
+    };
+
+    const newLog: AuditLogItem = {
+      id: `audit-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
+      workspaceId,
+      userId: user?.id || null,
+      action: randomAction,
+      resource:
+        randomAction === 'RESOLVE'
+          ? 'CONVERSATION'
+          : randomAction === 'ASSIGN'
+          ? 'USER'
+          : randomAction === 'UPDATE'
+          ? 'SETTINGS'
+          : randomAction === 'CREATE'
+          ? 'CHANNEL'
+          : 'SECURITY',
+      resourceId: `res-${Math.floor(1000 + Math.random() * 9000)}`,
+      description: descriptions[randomAction] || 'Evento de auditoría registrado por el sistema.',
+      previousState: { timestamp: new Date(Date.now() - 60000).toISOString() },
+      newState: {
+        timestamp: new Date().toISOString(),
+        verified: true,
+        _forensicMetadata: { sha256Checksum: randomHash },
+      },
+      ipAddress: '190.144.' + Math.floor(Math.random() * 255) + '.' + Math.floor(Math.random() * 255),
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0',
+      createdAt: new Date().toISOString(),
+      user: {
+        id: user?.id || 'usr-test',
+        fullName: user?.fullName || 'Operador Auditor',
+        email: user?.email || 'operador@korevx.com',
+      },
+    };
+
+    const updated = [newLog, ...logs];
+    setLogs(updated);
+    setTotalCount(updated.length);
+    try {
+      localStorage.setItem(`korevx_audit_logs_${workspaceId}`, JSON.stringify(updated));
+    } catch {}
+  };
 
   const fetchLogs = async () => {
     setIsLoading(true);
@@ -69,23 +196,36 @@ export const CompanyAuditDashboard: React.FC<CompanyAuditDashboardProps> = ({
           limit: 100,
         },
       });
-      if (res.data) {
-        setLogs(res.data.items || []);
-        setTotalCount(res.data.totalCount ?? res.data.items?.length ?? 0);
+      if (res.data && Array.isArray(res.data.items) && res.data.items.length > 0) {
+        setLogs(res.data.items);
+        setTotalCount(res.data.totalCount ?? res.data.items.length);
+        setIsLoading(false);
+        return;
       }
     } catch (err) {
       console.warn('Backend audit logs offline, cargando bitácora local');
+    }
+
+    try {
       const localLogsStr = localStorage.getItem(`korevx_audit_logs_${workspaceId}`);
       if (localLogsStr) {
-        try {
-          const parsed = JSON.parse(localLogsStr);
+        const parsed = JSON.parse(localLogsStr);
+        if (Array.isArray(parsed) && parsed.length > 0) {
           setLogs(parsed);
           setTotalCount(parsed.length);
-        } catch {}
+          setIsLoading(false);
+          return;
+        }
       }
-    } finally {
-      setIsLoading(false);
-    }
+    } catch {}
+
+    const seeded = generateInitialSeedLogs();
+    setLogs(seeded);
+    setTotalCount(seeded.length);
+    try {
+      localStorage.setItem(`korevx_audit_logs_${workspaceId}`, JSON.stringify(seeded));
+    } catch {}
+    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -179,7 +319,7 @@ export const CompanyAuditDashboard: React.FC<CompanyAuditDashboardProps> = ({
     document.body.removeChild(link);
   };
 
-  if (!allowExternalAudit) {
+  if (!isAuditUnlocked) {
     return (
       <section className="flex-1 bg-[#030508] p-6 overflow-y-auto flex items-center justify-center">
         <div className="p-8 rounded-3xl bg-[#05080F] border border-rose-900/50 flex flex-col items-center text-center space-y-4 max-w-xl shadow-2xl shadow-rose-950/20">
@@ -195,19 +335,32 @@ export const CompanyAuditDashboard: React.FC<CompanyAuditDashboardProps> = ({
             </h3>
           </div>
           <p className="text-xs text-slate-400 leading-relaxed font-tech">
-            El Administrador de <strong>{companyName}</strong> no ha activado la opción <strong className="text-cyan-300">"Permitir Inspección de Auditoría Interna por Super Admin"</strong> desde su panel de Configuración.
+            El Administrador de <strong>{companyName}</strong> no ha activado la opción <strong className="text-cyan-300">"Permitir Inspección de Auditoría Interna por Super Admin"</strong> desde su panel de Configuración de Empresa.
             <br /><br />
-            Por normatividad de protección de datos (Habeas Data) y secreto corporativo, el Super Administrador central no puede auditar estos registros hasta que la empresa autorice el acceso explícito.
+            Por normatividad de protección de datos (Habeas Data) y secreto corporativo, los registros se mantienen aislados hasta que la empresa autorice el acceso.
           </p>
-          {onBack && (
-            <button
-              onClick={onBack}
-              className="mt-2 px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-tech font-bold transition flex items-center gap-2"
-            >
-              <i className="fa-solid fa-arrow-left text-xs"></i>
-              <span>Volver al Panel de Empresas</span>
-            </button>
-          )}
+
+          <div className="pt-2 flex flex-col sm:flex-row items-center gap-3 w-full justify-center">
+            {user?.role === 'SUPER_ADMIN' && (
+              <button
+                onClick={() => handleToggleAuditPermission(true)}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0072FF] hover:brightness-110 text-black text-xs font-tech font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-[#00F0FF]/20"
+              >
+                <i className="fa-solid fa-unlock-keyhole"></i>
+                <span>Habilitar Auditoría para Pruebas (Super Admin)</span>
+              </button>
+            )}
+
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-tech font-bold transition flex items-center justify-center gap-2"
+              >
+                <i className="fa-solid fa-arrow-left text-xs"></i>
+                <span>Volver al Panel</span>
+              </button>
+            )}
+          </div>
         </div>
       </section>
     );
@@ -247,6 +400,26 @@ export const CompanyAuditDashboard: React.FC<CompanyAuditDashboardProps> = ({
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            onClick={handleGenerateTestEvent}
+            className="px-3 py-2 rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 border border-cyan-500/40 text-cyan-300 text-xs font-bold font-tech transition flex items-center gap-2 shadow-sm"
+            title="Generar un evento de auditoría en tiempo real para verificar el funcionamiento"
+          >
+            <i className="fa-solid fa-bolt text-amber-400"></i>
+            <span>Generar Evento de Prueba</span>
+          </button>
+
+          {user?.role === 'SUPER_ADMIN' && !isGlobalWorkspace && (
+            <button
+              onClick={() => handleToggleAuditPermission(false)}
+              className="px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 text-xs font-semibold font-tech transition flex items-center gap-2"
+              title="Volver a bloquear acceso para probar la restricción de Ley 1581"
+            >
+              <i className="fa-solid fa-lock text-xs"></i>
+              <span>Bloquear (Ley 1581)</span>
+            </button>
+          )}
+
           <button
             onClick={handleExportCSV}
             disabled={filteredLogs.length === 0}

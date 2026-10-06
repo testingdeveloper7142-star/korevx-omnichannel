@@ -133,6 +133,24 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
     return [];
   };
 
+  // Helper para resolver el logo de la empresa desde su perfil
+  const getEnterpriseLogo = (entId: string): string | null => {
+    try {
+      const profStr = localStorage.getItem(`korevx_company_profile_${entId}`);
+      if (profStr) {
+        const p = JSON.parse(profStr);
+        if (p.logoUrl) return p.logoUrl;
+      }
+      const savedEnts = localStorage.getItem('korevx_custom_enterprises');
+      if (savedEnts) {
+        const list = JSON.parse(savedEnts);
+        const found = list.find((e: any) => e.id === entId);
+        if (found && found.logoUrl) return found.logoUrl;
+      }
+    } catch (e) {}
+    return null;
+  };
+
   // Lista viva de empresas reales (cargadas desde Supabase / Backend)
   const [enterprises, setEnterprises] = useState<EnterpriseItem[]>(() => {
     try {
@@ -723,13 +741,39 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
                           className="hover:bg-[#080C14] transition cursor-pointer group"
                         >
                           <td className="py-3.5">
-                            <div className="font-bold text-white group-hover:text-[#00F0FF] transition">
-                              {ent.name}
-                            </div>
-                            <div className="text-[10px] text-slate-500 font-tech flex items-center gap-2 mt-0.5">
-                              <span>{ent.location}</span>
-                              <span>•</span>
-                              <span className="font-mono">ID: {ent.id.substring(0, 8)}...</span>
+                            <div className="flex items-center gap-2.5">
+                              {(() => {
+                                const logo = getEnterpriseLogo(ent.id);
+                                if (logo) {
+                                  return (
+                                    <div className="w-8 h-8 rounded-lg bg-[#0E1524] border border-[#1C2A44] flex items-center justify-center p-0.5 overflow-hidden flex-shrink-0">
+                                      <img
+                                        src={logo}
+                                        alt={ent.name}
+                                        className="w-full h-full object-contain rounded"
+                                        onError={(e) => {
+                                          (e.currentTarget as HTMLElement).style.display = 'none';
+                                        }}
+                                      />
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <div className="w-8 h-8 rounded-lg bg-[#0E1524] border border-[#1C2A44] flex items-center justify-center text-[#00F0FF] font-bold text-xs font-tech flex-shrink-0">
+                                    {ent.name.substring(0, 2).toUpperCase()}
+                                  </div>
+                                );
+                              })()}
+                              <div>
+                                <div className="font-bold text-white group-hover:text-[#00F0FF] transition">
+                                  {ent.name}
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-tech flex items-center gap-2 mt-0.5">
+                                  <span>{ent.location}</span>
+                                  <span>•</span>
+                                  <span className="font-mono">ID: {ent.id.substring(0, 8)}...</span>
+                                </div>
+                              </div>
                             </div>
                           </td>
                           <td className="py-3.5 text-slate-300 font-tech">{ent.industry}</td>
@@ -864,9 +908,28 @@ export const EnterpriseMetricsDashboard: React.FC<EnterpriseMetricsDashboardProp
               {/* Encabezado: Identidad Clara de la Empresa */}
               <div className="flex items-start justify-between pb-4 border-b border-[#141B29]">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#00F0FF]/20 to-[#0072FF]/20 text-[#00F0FF] border border-[#00F0FF]/40 flex items-center justify-center text-xl font-bold font-tech shadow-md shadow-[#00F0FF]/10">
-                    {selectedEnterprise.name.charAt(0)}
-                  </div>
+                  {(() => {
+                    const logo = getEnterpriseLogo(selectedEnterprise.id);
+                    if (logo) {
+                      return (
+                        <div className="w-12 h-12 rounded-2xl bg-[#0E1524] border border-[#00F0FF]/40 flex items-center justify-center p-1 overflow-hidden shadow-md shadow-[#00F0FF]/10 flex-shrink-0">
+                          <img
+                            src={logo}
+                            alt={selectedEnterprise.name}
+                            className="w-full h-full object-contain rounded-xl"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#00F0FF]/20 to-[#0072FF]/20 text-[#00F0FF] border border-[#00F0FF]/40 flex items-center justify-center text-xl font-bold font-tech shadow-md shadow-[#00F0FF]/10 flex-shrink-0">
+                        {selectedEnterprise.name.charAt(0)}
+                      </div>
+                    );
+                  })()}
                   <div>
                     <div className="flex items-center gap-2.5">
                       <h3 className="text-lg font-bold text-white font-tech">
